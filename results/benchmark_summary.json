@@ -1,0 +1,867 @@
+{
+  "elapsed_seconds": 185.134737165994,
+  "differentiable_race_pl_verification": {
+    "P4_max_log_prob_error_all_subsets": 8.109068971862143e-13,
+    "P4_max_autograd_error": 5.471179065352771e-13,
+    "large_category_checks": {
+      "P_16": {
+        "selected_k": 3,
+        "max_log_prob_error_vs_exact_combinatorial": 8.01136934569513e-13,
+        "shift_invariance_gradient_sum_error": 1.1102230246251565e-16,
+        "forward_backward_seconds_batch4x16": 0.0005377500783652067
+      },
+      "P_64": {
+        "selected_k": 3,
+        "max_log_prob_error_vs_exact_combinatorial": 6.750155989720952e-13,
+        "shift_invariance_gradient_sum_error": 1.1102230246251565e-16,
+        "forward_backward_seconds_batch4x16": 0.0018318750662729144
+      }
+    }
+  },
+  "synthetic_benchmarks": {
+    "missions_a": [
+      {
+        "model": "proposed_calibrated_mission_law",
+        "test_ll": -5.237193012422138,
+        "size_tv": 0.0019666230937305353,
+        "own_price_rel_mae": 0.08073013716134383,
+        "same_category_rel_mae": 0.1993646161281756,
+        "cross_category_rel_mae": 0.17683300431008334,
+        "zero_price_mae": null,
+        "optimal_plans_of_6": 6
+      },
+      {
+        "model": "uncalibrated_mission_law",
+        "test_ll": -5.237512672812969,
+        "size_tv": 0.0020851418005140266,
+        "own_price_rel_mae": 0.07943437026121992,
+        "same_category_rel_mae": 0.19636843625646586,
+        "cross_category_rel_mae": 0.3210993722502357,
+        "zero_price_mae": null,
+        "optimal_plans_of_6": 6
+      },
+      {
+        "model": "mission_esp",
+        "test_ll": -5.269314881872611,
+        "size_tv": 0.0039096788832910945,
+        "own_price_rel_mae": 0.1298379202084,
+        "same_category_rel_mae": 0.8065987128798815,
+        "cross_category_rel_mae": 0.4180523176205546,
+        "zero_price_mae": null,
+        "optimal_plans_of_6": 4
+      },
+      {
+        "model": "independent_categories_esp",
+        "test_ll": -5.275948226073393,
+        "size_tv": 0.0075486558712836785,
+        "own_price_rel_mae": 0.11931971439867446,
+        "same_category_rel_mae": 0.7900766214053081,
+        "cross_category_rel_mae": 0.38990865936787333,
+        "zero_price_mae": null,
+        "optimal_plans_of_6": 4
+      },
+      {
+        "model": "neural_nade",
+        "test_ll": -5.288671240500791,
+        "size_tv": 0.015529711484111688,
+        "own_price_rel_mae": 0.13272861243469816,
+        "same_category_rel_mae": 0.607513966393585,
+        "cross_category_rel_mae": 0.8408679077042751,
+        "zero_price_mae": null,
+        "optimal_plans_of_6": 4
+      },
+      {
+        "model": "logistic_normal_vae",
+        "test_ll": -5.3269052244807815,
+        "size_tv": 0.02902654298710823,
+        "own_price_rel_mae": 0.1714363839489198,
+        "same_category_rel_mae": 1.0516179255790832,
+        "cross_category_rel_mae": 0.8406007933640299,
+        "zero_price_mae": null,
+        "optimal_plans_of_6": 4
+      },
+      {
+        "model": "pairwise_binary_ar",
+        "test_ll": -5.41670367331369,
+        "size_tv": 0.030562069015969362,
+        "own_price_rel_mae": 0.14190972019194997,
+        "same_category_rel_mae": 1.0446356320700712,
+        "cross_category_rel_mae": 0.4981096681712794,
+        "zero_price_mae": null,
+        "optimal_plans_of_6": 4
+      },
+      {
+        "model": "shopper_factor_ar",
+        "test_ll": -5.419948117942203,
+        "size_tv": 0.031191067494726006,
+        "own_price_rel_mae": 0.14055297597802696,
+        "same_category_rel_mae": 1.0365267987009812,
+        "cross_category_rel_mae": 0.4976266765854801,
+        "zero_price_mae": null,
+        "optimal_plans_of_6": 4
+      },
+      {
+        "model": "size_aware_esp",
+        "test_ll": -5.624601712394979,
+        "size_tv": 0.0018079080630465988,
+        "own_price_rel_mae": 0.1944031816475741,
+        "same_category_rel_mae": 1.6512329507161183,
+        "cross_category_rel_mae": 2.024743722391896,
+        "zero_price_mae": null,
+        "optimal_plans_of_6": 4
+      },
+      {
+        "model": "independent_parent",
+        "test_ll": -5.631639957693612,
+        "size_tv": 0.04067216544399442,
+        "own_price_rel_mae": 0.1154048412534007,
+        "same_category_rel_mae": 1.0316696402445389,
+        "cross_category_rel_mae": 0.644473802229491,
+        "zero_price_mae": null,
+        "optimal_plans_of_6": 4
+      },
+      {
+        "model": "no_price",
+        "test_ll": -5.694727614372516,
+        "size_tv": 0.04128408983132608,
+        "own_price_rel_mae": 1.0,
+        "same_category_rel_mae": 1.0,
+        "cross_category_rel_mae": 1.0,
+        "zero_price_mae": null,
+        "optimal_plans_of_6": 4
+      },
+      {
+        "model": "popularity",
+        "test_ll": -5.860160231394615,
+        "size_tv": 0.03788055559428644,
+        "own_price_rel_mae": 1.0,
+        "same_category_rel_mae": 1.0,
+        "cross_category_rel_mae": 1.0,
+        "zero_price_mae": null,
+        "optimal_plans_of_6": 4
+      }
+    ],
+    "zero_price": [
+      {
+        "model": "uncalibrated_mission_law",
+        "test_ll": -5.176537722871991,
+        "size_tv": 0.002321305901536211,
+        "own_price_rel_mae": null,
+        "same_category_rel_mae": null,
+        "cross_category_rel_mae": null,
+        "zero_price_mae": 0.00041773491608857014,
+        "optimal_plans_of_6": 6
+      },
+      {
+        "model": "proposed_calibrated_mission_law",
+        "test_ll": -5.176537722871992,
+        "size_tv": 0.0023213059015361978,
+        "own_price_rel_mae": null,
+        "same_category_rel_mae": null,
+        "cross_category_rel_mae": null,
+        "zero_price_mae": 0.00041773491608857485,
+        "optimal_plans_of_6": 6
+      },
+      {
+        "model": "mission_esp",
+        "test_ll": -5.197237334800648,
+        "size_tv": 0.003224781586275306,
+        "own_price_rel_mae": null,
+        "same_category_rel_mae": null,
+        "cross_category_rel_mae": null,
+        "zero_price_mae": 0.0001949060433700053,
+        "optimal_plans_of_6": 3
+      },
+      {
+        "model": "independent_categories_esp",
+        "test_ll": -5.200530678586693,
+        "size_tv": 0.0082300792341586,
+        "own_price_rel_mae": null,
+        "same_category_rel_mae": null,
+        "cross_category_rel_mae": null,
+        "zero_price_mae": 0.000196486257708704,
+        "optimal_plans_of_6": 3
+      },
+      {
+        "model": "neural_nade",
+        "test_ll": -5.215203963234574,
+        "size_tv": 0.01874469153164934,
+        "own_price_rel_mae": null,
+        "same_category_rel_mae": null,
+        "cross_category_rel_mae": null,
+        "zero_price_mae": 0.0007662972827965546,
+        "optimal_plans_of_6": 3
+      },
+      {
+        "model": "logistic_normal_vae",
+        "test_ll": -5.266505709158591,
+        "size_tv": 0.02177718917921586,
+        "own_price_rel_mae": null,
+        "same_category_rel_mae": null,
+        "cross_category_rel_mae": null,
+        "zero_price_mae": 3.1057730087296714e-05,
+        "optimal_plans_of_6": 3
+      },
+      {
+        "model": "pairwise_binary_ar",
+        "test_ll": -5.336884425913979,
+        "size_tv": 0.03514906583891487,
+        "own_price_rel_mae": null,
+        "same_category_rel_mae": null,
+        "cross_category_rel_mae": null,
+        "zero_price_mae": 0.00017291568821018344,
+        "optimal_plans_of_6": 6
+      },
+      {
+        "model": "shopper_factor_ar",
+        "test_ll": -5.345243017603583,
+        "size_tv": 0.03597237542833823,
+        "own_price_rel_mae": null,
+        "same_category_rel_mae": null,
+        "cross_category_rel_mae": null,
+        "zero_price_mae": 0.0020262665239270308,
+        "optimal_plans_of_6": 3
+      },
+      {
+        "model": "size_aware_esp",
+        "test_ll": -5.578305422262859,
+        "size_tv": 0.004825949883022139,
+        "own_price_rel_mae": null,
+        "same_category_rel_mae": null,
+        "cross_category_rel_mae": null,
+        "zero_price_mae": 0.002186170844674563,
+        "optimal_plans_of_6": 3
+      },
+      {
+        "model": "independent_parent",
+        "test_ll": -5.581417718385933,
+        "size_tv": 0.038672841312287085,
+        "own_price_rel_mae": null,
+        "same_category_rel_mae": null,
+        "cross_category_rel_mae": null,
+        "zero_price_mae": 0.000208108926955343,
+        "optimal_plans_of_6": 3
+      },
+      {
+        "model": "no_price",
+        "test_ll": -5.581482191306553,
+        "size_tv": 0.03857597668985103,
+        "own_price_rel_mae": null,
+        "same_category_rel_mae": null,
+        "cross_category_rel_mae": null,
+        "zero_price_mae": 0.0,
+        "optimal_plans_of_6": 3
+      },
+      {
+        "model": "popularity",
+        "test_ll": -5.740073327808277,
+        "size_tv": 0.03477283617966201,
+        "own_price_rel_mae": null,
+        "same_category_rel_mae": null,
+        "cross_category_rel_mae": null,
+        "zero_price_mae": 0.0,
+        "optimal_plans_of_6": 3
+      }
+    ]
+  },
+  "real_benchmarks": {
+    "erim": {
+      "dataset": "erim",
+      "summary_table": [
+        {
+          "model": "proposed_whole_law",
+          "family": "composite_whole_law_nonparametric_count_and_missions",
+          "test_ll": -3.3633263421394055,
+          "validation_ll": -3.4044407437188675,
+          "size_TV": 0.01890055338541666,
+          "frequency_MAE": 0.010530744280133928,
+          "category_pair_MAE": 0.003689720517113095,
+          "within_category_multiple_MAE": 0.0007295154389880951,
+          "recall5": 0.6800455729166667,
+          "Brier": 0.03568192842400424,
+          "generation_seconds": 0.4102113329572603,
+          "fit_seconds": 22.9483618340455,
+          "proposed_gain_over_model": 0.0,
+          "proposed_gain_95_ci_low": 0.0,
+          "proposed_gain_95_ci_high": 0.0
+        },
+        {
+          "model": "structured_energy",
+          "family": "category_frontier_dp_energy",
+          "test_ll": -3.3797339446550625,
+          "validation_ll": -3.4202435260190014,
+          "size_TV": 0.01520792643229168,
+          "frequency_MAE": 0.010793050130208334,
+          "category_pair_MAE": 0.004096137152777778,
+          "within_category_multiple_MAE": 0.0007571265811011904,
+          "recall5": 0.6857991536458332,
+          "Brier": 0.035904178020318825,
+          "generation_seconds": 1.1323874170193449,
+          "fit_seconds": 0.0,
+          "proposed_gain_over_model": 0.016407602515656792,
+          "proposed_gain_95_ci_low": 0.014531041851533127,
+          "proposed_gain_95_ci_high": 0.018256487101730213
+        },
+        {
+          "model": "pairwise_ar",
+          "family": "pairwise_binary_ar",
+          "test_ll": -3.385175883140216,
+          "validation_ll": -3.4216635146894117,
+          "size_TV": 0.011993408203125,
+          "frequency_MAE": 0.010029384068080358,
+          "category_pair_MAE": 0.0038539341517857145,
+          "within_category_multiple_MAE": 0.002506801060267857,
+          "recall5": 0.6279622395833333,
+          "Brier": 0.03578462146577382,
+          "generation_seconds": 0.23878962500020862,
+          "fit_seconds": 1.3856277499580756,
+          "proposed_gain_over_model": 0.02184954100081025,
+          "proposed_gain_95_ci_low": 0.01649281809992491,
+          "proposed_gain_95_ci_high": 0.027048260978206094
+        },
+        {
+          "model": "shopper_factor_ar",
+          "family": "shopper_factor_rank8",
+          "test_ll": -3.3916587934081446,
+          "validation_ll": -3.4265456863187476,
+          "size_TV": 0.007720947265625,
+          "frequency_MAE": 0.010113307407924108,
+          "category_pair_MAE": 0.003467378162202381,
+          "within_category_multiple_MAE": 0.0032958984375,
+          "recall5": 0.6248291015624999,
+          "Brier": 0.035771542503720236,
+          "generation_seconds": 0.24594412499573082,
+          "fit_seconds": 1.2142585420515388,
+          "proposed_gain_over_model": 0.028332451268739296,
+          "proposed_gain_95_ci_low": 0.023046950304966837,
+          "proposed_gain_95_ci_high": 0.033798301551303804
+        },
+        {
+          "model": "logistic_normal_vae",
+          "family": "logistic_normal_vae_K6_M12",
+          "test_ll": -3.3939187837945997,
+          "validation_ll": -3.4328577270712395,
+          "size_TV": 0.0189208984375,
+          "frequency_MAE": 0.010281154087611608,
+          "category_pair_MAE": 0.0034354073660714285,
+          "within_category_multiple_MAE": 0.004255022321428571,
+          "recall5": 0.6262125651041666,
+          "Brier": 0.03578941708519345,
+          "generation_seconds": 0.19059933302924037,
+          "fit_seconds": 2.5247722499771044,
+          "proposed_gain_over_model": 0.030592441655193633,
+          "proposed_gain_95_ci_low": 0.025869750354974578,
+          "proposed_gain_95_ci_high": 0.034963960866939876
+        },
+        {
+          "model": "independent_parent",
+          "family": "mvp_independent_logit",
+          "test_ll": -3.4028852432528343,
+          "validation_ll": -3.439263270713663,
+          "size_TV": 0.02699788411458332,
+          "frequency_MAE": 0.01079958961123512,
+          "category_pair_MAE": 0.003481425936259921,
+          "within_category_multiple_MAE": 0.004673549107142857,
+          "recall5": 0.6683675130208333,
+          "Brier": 0.03602666574650139,
+          "generation_seconds": 0.35137616703286767,
+          "fit_seconds": 0.0,
+          "proposed_gain_over_model": 0.03955890111342839,
+          "proposed_gain_95_ci_low": 0.03541624968383623,
+          "proposed_gain_95_ci_high": 0.043686714731034006
+        },
+        {
+          "model": "independent_categories_esp",
+          "family": "independent_categories_esp",
+          "test_ll": -3.4035637362266855,
+          "validation_ll": -3.4245118415850353,
+          "size_TV": 0.023712158203125,
+          "frequency_MAE": 0.010843549455915178,
+          "category_pair_MAE": 0.004038492838541667,
+          "within_category_multiple_MAE": 0.0015738351004464285,
+          "recall5": 0.611767578125,
+          "Brier": 0.03630530947730654,
+          "generation_seconds": 0.18351183296181262,
+          "fit_seconds": 3.5957280410220847,
+          "proposed_gain_over_model": 0.040237394087279756,
+          "proposed_gain_95_ci_low": 0.03594588967557172,
+          "proposed_gain_95_ci_high": 0.04465280561996302
+        },
+        {
+          "model": "mission_esp",
+          "family": "mission_esp_K2",
+          "test_ll": -3.4078321068662514,
+          "validation_ll": -3.4300834204166133,
+          "size_TV": 0.015838623046875,
+          "frequency_MAE": 0.010529654366629464,
+          "category_pair_MAE": 0.003737676711309524,
+          "within_category_multiple_MAE": 0.0016915457589285715,
+          "recall5": 0.6265380859375,
+          "Brier": 0.03615679059709821,
+          "generation_seconds": 0.1921744579449296,
+          "fit_seconds": 0.7941423340234905,
+          "proposed_gain_over_model": 0.044505764726845545,
+          "proposed_gain_95_ci_low": 0.039864182011894574,
+          "proposed_gain_95_ci_high": 0.04917454031143614
+        },
+        {
+          "model": "size_aware_esp",
+          "family": "size_aware_esp",
+          "test_ll": -3.415348853574038,
+          "validation_ll": -3.443568581822911,
+          "size_TV": 0.0245361328125,
+          "frequency_MAE": 0.01079559326171875,
+          "category_pair_MAE": 0.0032450358072916665,
+          "within_category_multiple_MAE": 0.005615234375,
+          "recall5": 0.6170979817708333,
+          "Brier": 0.036088053385416666,
+          "generation_seconds": 0.1361520829377696,
+          "fit_seconds": 0.2813464169157669,
+          "proposed_gain_over_model": 0.05202251143463196,
+          "proposed_gain_95_ci_low": 0.04595175489295408,
+          "proposed_gain_95_ci_high": 0.05801134389412017
+        },
+        {
+          "model": "neural_nade",
+          "family": "conditional_NADE_H16_crossprice_rank8",
+          "test_ll": -3.432898478785726,
+          "validation_ll": -3.424755851159486,
+          "size_TV": 0.01816813151041666,
+          "frequency_MAE": 0.010837373279389878,
+          "category_pair_MAE": 0.004526774088541667,
+          "within_category_multiple_MAE": 0.0015433175223214285,
+          "recall5": 0.6643391927083333,
+          "Brier": 0.0363688367478391,
+          "generation_seconds": 0.8630456669488922,
+          "fit_seconds": 0.0,
+          "proposed_gain_over_model": 0.06957213664632059,
+          "proposed_gain_95_ci_low": 0.06400043919323535,
+          "proposed_gain_95_ci_high": 0.07580664083719713
+        },
+        {
+          "model": "no_price",
+          "family": "no_price",
+          "test_ll": -3.4858836253136993,
+          "validation_ll": -3.5169898986393178,
+          "size_TV": 0.014312744140625,
+          "frequency_MAE": 0.011953081403459822,
+          "category_pair_MAE": 0.004256475539434524,
+          "within_category_multiple_MAE": 0.0033133370535714285,
+          "recall5": 0.5983805338541667,
+          "Brier": 0.03661411830357143,
+          "generation_seconds": 0.24221329193096608,
+          "fit_seconds": 0.8840986669529229,
+          "proposed_gain_over_model": 0.12255728317429351,
+          "proposed_gain_95_ci_low": 0.11001368128324389,
+          "proposed_gain_95_ci_high": 0.13568463017818522
+        },
+        {
+          "model": "popularity",
+          "family": "popularity",
+          "test_ll": -4.365769929390288,
+          "validation_ll": -4.403493812296108,
+          "size_TV": 0.040252685546875,
+          "frequency_MAE": 0.015023367745535714,
+          "category_pair_MAE": 0.0027523949032738095,
+          "within_category_multiple_MAE": 0.004586356026785714,
+          "recall5": 0.33352864583333336,
+          "Brier": 0.041709245954241074,
+          "generation_seconds": 0.054438958992250264,
+          "fit_seconds": 0.167266667005606,
+          "proposed_gain_over_model": 1.0024435872508817,
+          "proposed_gain_95_ci_low": 0.9748164857599727,
+          "proposed_gain_95_ci_high": 1.0320033605891032
+        }
+      ],
+      "paired_household_bootstrap_vs_proposed": {
+        "independent_parent": {
+          "mean_gain": 0.03955890111342839,
+          "cluster_95_ci": [
+            0.03541624968383623,
+            0.043686714731034006
+          ],
+          "cluster_count": 3340
+        },
+        "structured_energy": {
+          "mean_gain": 0.016407602515656792,
+          "cluster_95_ci": [
+            0.014531041851533127,
+            0.018256487101730213
+          ],
+          "cluster_count": 3340
+        },
+        "neural_nade": {
+          "mean_gain": 0.06957213664632059,
+          "cluster_95_ci": [
+            0.06400043919323535,
+            0.07580664083719713
+          ],
+          "cluster_count": 3340
+        },
+        "popularity": {
+          "mean_gain": 1.0024435872508817,
+          "cluster_95_ci": [
+            0.9748164857599727,
+            1.0320033605891032
+          ],
+          "cluster_count": 3340
+        },
+        "no_price": {
+          "mean_gain": 0.12255728317429351,
+          "cluster_95_ci": [
+            0.11001368128324389,
+            0.13568463017818522
+          ],
+          "cluster_count": 3340
+        },
+        "size_aware_esp": {
+          "mean_gain": 0.05202251143463196,
+          "cluster_95_ci": [
+            0.04595175489295408,
+            0.05801134389412017
+          ],
+          "cluster_count": 3340
+        },
+        "independent_categories_esp": {
+          "mean_gain": 0.040237394087279756,
+          "cluster_95_ci": [
+            0.03594588967557172,
+            0.04465280561996302
+          ],
+          "cluster_count": 3340
+        },
+        "mission_esp": {
+          "mean_gain": 0.044505764726845545,
+          "cluster_95_ci": [
+            0.039864182011894574,
+            0.04917454031143614
+          ],
+          "cluster_count": 3340
+        },
+        "pairwise_ar": {
+          "mean_gain": 0.02184954100081025,
+          "cluster_95_ci": [
+            0.01649281809992491,
+            0.027048260978206094
+          ],
+          "cluster_count": 3340
+        },
+        "shopper_factor_ar": {
+          "mean_gain": 0.028332451268739296,
+          "cluster_95_ci": [
+            0.023046950304966837,
+            0.033798301551303804
+          ],
+          "cluster_count": 3340
+        },
+        "logistic_normal_vae": {
+          "mean_gain": 0.030592441655193633,
+          "cluster_95_ci": [
+            0.025869750354974578,
+            0.034963960866939876
+          ],
+          "cluster_count": 3340
+        }
+      }
+    },
+    "dunnhumby": {
+      "dataset": "dunnhumby",
+      "summary_table": [
+        {
+          "model": "proposed_whole_law",
+          "family": "composite_whole_law_nonparametric_count_and_missions",
+          "test_ll": -6.832152146521875,
+          "validation_ll": -6.419880763968969,
+          "size_TV": 0.020273844401041678,
+          "frequency_MAE": 0.005181630452473959,
+          "category_pair_MAE": 0.0028914557562934027,
+          "within_category_multiple_MAE": 0.002880096435546875,
+          "recall5": 0.47764008316986833,
+          "Brier": 0.027205392823997122,
+          "generation_seconds": 1.6220418750308454,
+          "fit_seconds": 72.17538433300797,
+          "proposed_gain_over_model": 0.0,
+          "proposed_gain_95_ci_low": 0.0,
+          "proposed_gain_95_ci_high": 0.0
+        },
+        {
+          "model": "neural_nade",
+          "family": "conditional_NADE_H16_crossprice_rank8",
+          "test_ll": -6.842608796516286,
+          "validation_ll": -6.453587285677608,
+          "size_TV": 0.018880208333333346,
+          "frequency_MAE": 0.00504302978515625,
+          "category_pair_MAE": 0.002583397759331597,
+          "within_category_multiple_MAE": 0.0022068023681640625,
+          "recall5": 0.4691261632789953,
+          "Brier": 0.02733899515571324,
+          "generation_seconds": 2.0021480419673026,
+          "fit_seconds": 0.0,
+          "proposed_gain_over_model": 0.010456649994412627,
+          "proposed_gain_95_ci_low": -0.0006136730210541925,
+          "proposed_gain_95_ci_high": 0.021307746090702535
+        },
+        {
+          "model": "structured_energy",
+          "family": "category_frontier_dp_energy",
+          "test_ll": -6.947024574653826,
+          "validation_ll": -6.548235331545257,
+          "size_TV": 0.081634521484375,
+          "frequency_MAE": 0.005529880523681641,
+          "category_pair_MAE": 0.004314337836371527,
+          "within_category_multiple_MAE": 0.0025780995686848955,
+          "recall5": 0.47102910381718976,
+          "Brier": 0.027399002237522854,
+          "generation_seconds": 3.0525203329743817,
+          "fit_seconds": 0.0,
+          "proposed_gain_over_model": 0.11487242813195099,
+          "proposed_gain_95_ci_low": 0.10622076913113365,
+          "proposed_gain_95_ci_high": 0.12395430410599734
+        },
+        {
+          "model": "mission_esp",
+          "family": "mission_esp_K2",
+          "test_ll": -7.0706229501971105,
+          "validation_ll": -6.671007483422203,
+          "size_TV": 0.027130126953125,
+          "frequency_MAE": 0.0055103302001953125,
+          "category_pair_MAE": 0.003435516357421875,
+          "within_category_multiple_MAE": 0.002567291259765625,
+          "recall5": 0.39785008285984846,
+          "Brier": 0.02761688232421875,
+          "generation_seconds": 0.4182417499832809,
+          "fit_seconds": 1.3413161670323461,
+          "proposed_gain_over_model": 0.2384708036752351,
+          "proposed_gain_95_ci_low": 0.22460072322915248,
+          "proposed_gain_95_ci_high": 0.25217982807270756
+        },
+        {
+          "model": "shopper_factor_ar",
+          "family": "shopper_factor_rank8",
+          "test_ll": -7.0950891489638845,
+          "validation_ll": -6.721199915755103,
+          "size_TV": 0.03936767578125,
+          "frequency_MAE": 0.005871295928955078,
+          "category_pair_MAE": 0.0036244710286458333,
+          "within_category_multiple_MAE": 0.003116607666015625,
+          "recall5": 0.38176857864357866,
+          "Brier": 0.027870241800944013,
+          "generation_seconds": 0.3226272079627961,
+          "fit_seconds": 1.956688959035091,
+          "proposed_gain_over_model": 0.26293700244201007,
+          "proposed_gain_95_ci_low": 0.24516404861263094,
+          "proposed_gain_95_ci_high": 0.2806190620198373
+        },
+        {
+          "model": "pairwise_ar",
+          "family": "pairwise_binary_ar",
+          "test_ll": -7.102734850812433,
+          "validation_ll": -6.728552082661472,
+          "size_TV": 0.09197998046875,
+          "frequency_MAE": 0.005839347839355469,
+          "category_pair_MAE": 0.003972625732421875,
+          "within_category_multiple_MAE": 0.004146575927734375,
+          "recall5": 0.3841208541892136,
+          "Brier": 0.02787602742513021,
+          "generation_seconds": 0.2482279590331018,
+          "fit_seconds": 3.0801744170021266,
+          "proposed_gain_over_model": 0.27058270429055853,
+          "proposed_gain_95_ci_low": 0.252643034927214,
+          "proposed_gain_95_ci_high": 0.287327005940733
+        },
+        {
+          "model": "independent_categories_esp",
+          "family": "independent_categories_esp",
+          "test_ll": -7.147085590808988,
+          "validation_ll": -6.739897905868669,
+          "size_TV": 0.11602783203125,
+          "frequency_MAE": 0.005626678466796875,
+          "category_pair_MAE": 0.004846700032552083,
+          "within_category_multiple_MAE": 0.0021991729736328125,
+          "recall5": 0.39871195563334233,
+          "Brier": 0.02757225036621094,
+          "generation_seconds": 0.20866187498904765,
+          "fit_seconds": 3.5435758749954402,
+          "proposed_gain_over_model": 0.3149334442871131,
+          "proposed_gain_95_ci_low": 0.29763439947589676,
+          "proposed_gain_95_ci_high": 0.33312109651419136
+        },
+        {
+          "model": "logistic_normal_vae",
+          "family": "logistic_normal_vae_K6_M12",
+          "test_ll": -7.147713363500364,
+          "validation_ll": -6.769217503901011,
+          "size_TV": 0.01300048828125,
+          "frequency_MAE": 0.005827426910400391,
+          "category_pair_MAE": 0.003834025065104167,
+          "within_category_multiple_MAE": 0.0050296783447265625,
+          "recall5": 0.3891681709674874,
+          "Brier": 0.027905718485514323,
+          "generation_seconds": 0.17494979093316942,
+          "fit_seconds": 3.2906919580418617,
+          "proposed_gain_over_model": 0.3155612169784884,
+          "proposed_gain_95_ci_low": 0.29610851945249617,
+          "proposed_gain_95_ci_high": 0.33271686417836377
+        },
+        {
+          "model": "size_aware_esp",
+          "family": "size_aware_esp",
+          "test_ll": -7.184380402000249,
+          "validation_ll": -6.808285973742563,
+          "size_TV": 0.023223876953125,
+          "frequency_MAE": 0.005953788757324219,
+          "category_pair_MAE": 0.00466156005859375,
+          "within_category_multiple_MAE": 0.0057430267333984375,
+          "recall5": 0.3809435207262356,
+          "Brier": 0.027921994527180995,
+          "generation_seconds": 0.5947127089602873,
+          "fit_seconds": 0.9179139579646289,
+          "proposed_gain_over_model": 0.35222825547837405,
+          "proposed_gain_95_ci_low": 0.33339902136929495,
+          "proposed_gain_95_ci_high": 0.37015412508060536
+        },
+        {
+          "model": "no_price",
+          "family": "no_price",
+          "test_ll": -7.247053423519289,
+          "validation_ll": -6.864513752327486,
+          "size_TV": 0.1495361328125,
+          "frequency_MAE": 0.006120204925537109,
+          "category_pair_MAE": 0.0043718973795572914,
+          "within_category_multiple_MAE": 0.0065784454345703125,
+          "recall5": 0.3891385253201659,
+          "Brier": 0.027851486206054685,
+          "generation_seconds": 0.2702097080182284,
+          "fit_seconds": 1.1043491249438375,
+          "proposed_gain_over_model": 0.41490127699741397,
+          "proposed_gain_95_ci_low": 0.3961002638729218,
+          "proposed_gain_95_ci_high": 0.4344290623130074
+        },
+        {
+          "model": "independent_parent",
+          "family": "mvp_independent_logit",
+          "test_ll": -7.307458660567798,
+          "validation_ll": -6.922254199617948,
+          "size_TV": 0.08262125651041666,
+          "frequency_MAE": 0.006578127543131511,
+          "category_pair_MAE": 0.007173411051432292,
+          "within_category_multiple_MAE": 0.005907694498697917,
+          "recall5": 0.4367563927500451,
+          "Brier": 0.027944348382611645,
+          "generation_seconds": 0.7368583339266479,
+          "fit_seconds": 0.0,
+          "proposed_gain_over_model": 0.47530651404592306,
+          "proposed_gain_95_ci_low": 0.45025869498577936,
+          "proposed_gain_95_ci_high": 0.5020379095885062
+        },
+        {
+          "model": "popularity",
+          "family": "popularity",
+          "test_ll": -8.193142953740907,
+          "validation_ll": -7.94764933183979,
+          "size_TV": 0.1407470703125,
+          "frequency_MAE": 0.007414817810058594,
+          "category_pair_MAE": 0.0050201416015625,
+          "within_category_multiple_MAE": 0.0058441162109375,
+          "recall5": 0.2584286820492875,
+          "Brier": 0.03000532786051432,
+          "generation_seconds": 0.10922770795878023,
+          "fit_seconds": 0.5357189580099657,
+          "proposed_gain_over_model": 1.3609908072190338,
+          "proposed_gain_95_ci_low": 1.302271795904386,
+          "proposed_gain_95_ci_high": 1.424475711344897
+        }
+      ],
+      "paired_household_bootstrap_vs_proposed": {
+        "independent_parent": {
+          "mean_gain": 0.47530651404592306,
+          "cluster_95_ci": [
+            0.45025869498577936,
+            0.5020379095885062
+          ],
+          "cluster_count": 2033
+        },
+        "structured_energy": {
+          "mean_gain": 0.11487242813195099,
+          "cluster_95_ci": [
+            0.10622076913113365,
+            0.12395430410599734
+          ],
+          "cluster_count": 2033
+        },
+        "neural_nade": {
+          "mean_gain": 0.010456649994412627,
+          "cluster_95_ci": [
+            -0.0006136730210541925,
+            0.021307746090702535
+          ],
+          "cluster_count": 2033
+        },
+        "popularity": {
+          "mean_gain": 1.3609908072190338,
+          "cluster_95_ci": [
+            1.302271795904386,
+            1.424475711344897
+          ],
+          "cluster_count": 2033
+        },
+        "no_price": {
+          "mean_gain": 0.41490127699741397,
+          "cluster_95_ci": [
+            0.3961002638729218,
+            0.4344290623130074
+          ],
+          "cluster_count": 2033
+        },
+        "size_aware_esp": {
+          "mean_gain": 0.35222825547837405,
+          "cluster_95_ci": [
+            0.33339902136929495,
+            0.37015412508060536
+          ],
+          "cluster_count": 2033
+        },
+        "independent_categories_esp": {
+          "mean_gain": 0.3149334442871131,
+          "cluster_95_ci": [
+            0.29763439947589676,
+            0.33312109651419136
+          ],
+          "cluster_count": 2033
+        },
+        "mission_esp": {
+          "mean_gain": 0.2384708036752351,
+          "cluster_95_ci": [
+            0.22460072322915248,
+            0.25217982807270756
+          ],
+          "cluster_count": 2033
+        },
+        "pairwise_ar": {
+          "mean_gain": 0.27058270429055853,
+          "cluster_95_ci": [
+            0.252643034927214,
+            0.287327005940733
+          ],
+          "cluster_count": 2033
+        },
+        "shopper_factor_ar": {
+          "mean_gain": 0.26293700244201007,
+          "cluster_95_ci": [
+            0.24516404861263094,
+            0.2806190620198373
+          ],
+          "cluster_count": 2033
+        },
+        "logistic_normal_vae": {
+          "mean_gain": 0.3155612169784884,
+          "cluster_95_ci": [
+            0.29610851945249617,
+            0.33271686417836377
+          ],
+          "cluster_count": 2033
+        }
+      }
+    }
+  }
+}

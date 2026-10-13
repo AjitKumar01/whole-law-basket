@@ -1,0 +1,246 @@
+{
+  "missions_a": [
+    {
+      "model": "proposed_calibrated_mission_law",
+      "test_ll": -5.237193012422138,
+      "size_tv": 0.0019666230937305353,
+      "own_price_rel_mae": 0.08073013716134383,
+      "same_category_rel_mae": 0.1993646161281756,
+      "cross_category_rel_mae": 0.17683300431008334,
+      "zero_price_mae": null,
+      "optimal_plans_of_6": 6
+    },
+    {
+      "model": "uncalibrated_mission_law",
+      "test_ll": -5.237512672812969,
+      "size_tv": 0.0020851418005140266,
+      "own_price_rel_mae": 0.07943437026121992,
+      "same_category_rel_mae": 0.19636843625646586,
+      "cross_category_rel_mae": 0.3210993722502357,
+      "zero_price_mae": null,
+      "optimal_plans_of_6": 6
+    },
+    {
+      "model": "mission_esp",
+      "test_ll": -5.269314881872611,
+      "size_tv": 0.0039096788832910945,
+      "own_price_rel_mae": 0.1298379202084,
+      "same_category_rel_mae": 0.8065987128798815,
+      "cross_category_rel_mae": 0.4180523176205546,
+      "zero_price_mae": null,
+      "optimal_plans_of_6": 4
+    },
+    {
+      "model": "independent_categories_esp",
+      "test_ll": -5.275948226073393,
+      "size_tv": 0.0075486558712836785,
+      "own_price_rel_mae": 0.11931971439867446,
+      "same_category_rel_mae": 0.7900766214053081,
+      "cross_category_rel_mae": 0.38990865936787333,
+      "zero_price_mae": null,
+      "optimal_plans_of_6": 4
+    },
+    {
+      "model": "neural_nade",
+      "test_ll": -5.288671240500791,
+      "size_tv": 0.015529711484111688,
+      "own_price_rel_mae": 0.13272861243469816,
+      "same_category_rel_mae": 0.607513966393585,
+      "cross_category_rel_mae": 0.8408679077042751,
+      "zero_price_mae": null,
+      "optimal_plans_of_6": 4
+    },
+    {
+      "model": "logistic_normal_vae",
+      "test_ll": -5.3269052244807815,
+      "size_tv": 0.02902654298710823,
+      "own_price_rel_mae": 0.1714363839489198,
+      "same_category_rel_mae": 1.0516179255790832,
+      "cross_category_rel_mae": 0.8406007933640299,
+      "zero_price_mae": null,
+      "optimal_plans_of_6": 4
+    },
+    {
+      "model": "pairwise_binary_ar",
+      "test_ll": -5.41670367331369,
+      "size_tv": 0.030562069015969362,
+      "own_price_rel_mae": 0.14190972019194997,
+      "same_category_rel_mae": 1.0446356320700712,
+      "cross_category_rel_mae": 0.4981096681712794,
+      "zero_price_mae": null,
+      "optimal_plans_of_6": 4
+    },
+    {
+      "model": "shopper_factor_ar",
+      "test_ll": -5.419948117942203,
+      "size_tv": 0.031191067494726006,
+      "own_price_rel_mae": 0.14055297597802696,
+      "same_category_rel_mae": 1.0365267987009812,
+      "cross_category_rel_mae": 0.4976266765854801,
+      "zero_price_mae": null,
+      "optimal_plans_of_6": 4
+    },
+    {
+      "model": "size_aware_esp",
+      "test_ll": -5.624601712394979,
+      "size_tv": 0.0018079080630465988,
+      "own_price_rel_mae": 0.1944031816475741,
+      "same_category_rel_mae": 1.6512329507161183,
+      "cross_category_rel_mae": 2.024743722391896,
+      "zero_price_mae": null,
+      "optimal_plans_of_6": 4
+    },
+    {
+      "model": "independent_parent",
+      "test_ll": -5.631639957693612,
+      "size_tv": 0.04067216544399442,
+      "own_price_rel_mae": 0.1154048412534007,
+      "same_category_rel_mae": 1.0316696402445389,
+      "cross_category_rel_mae": 0.644473802229491,
+      "zero_price_mae": null,
+      "optimal_plans_of_6": 4
+    },
+    {
+      "model": "no_price",
+      "test_ll": -5.694727614372516,
+      "size_tv": 0.04128408983132608,
+      "own_price_rel_mae": 1.0,
+      "same_category_rel_mae": 1.0,
+      "cross_category_rel_mae": 1.0,
+      "zero_price_mae": null,
+      "optimal_plans_of_6": 4
+    },
+    {
+      "model": "popularity",
+      "test_ll": -5.860160231394615,
+      "size_tv": 0.03788055559428644,
+      "own_price_rel_mae": 1.0,
+      "same_category_rel_mae": 1.0,
+      "cross_category_rel_mae": 1.0,
+      "zero_price_mae": null,
+      "optimal_plans_of_6": 4
+    }
+  ],
+  "zero_price": [
+    {
+      "model": "uncalibrated_mission_law",
+      "test_ll": -5.176537722871991,
+      "size_tv": 0.002321305901536211,
+      "own_price_rel_mae": null,
+      "same_category_rel_mae": null,
+      "cross_category_rel_mae": null,
+      "zero_price_mae": 0.00041773491608857014,
+      "optimal_plans_of_6": 6
+    },
+    {
+      "model": "proposed_calibrated_mission_law",
+      "test_ll": -5.176537722871992,
+      "size_tv": 0.0023213059015361978,
+      "own_price_rel_mae": null,
+      "same_category_rel_mae": null,
+      "cross_category_rel_mae": null,
+      "zero_price_mae": 0.00041773491608857485,
+      "optimal_plans_of_6": 6
+    },
+    {
+      "model": "mission_esp",
+      "test_ll": -5.197237334800648,
+      "size_tv": 0.003224781586275306,
+      "own_price_rel_mae": null,
+      "same_category_rel_mae": null,
+      "cross_category_rel_mae": null,
+      "zero_price_mae": 0.0001949060433700053,
+      "optimal_plans_of_6": 3
+    },
+    {
+      "model": "independent_categories_esp",
+      "test_ll": -5.200530678586693,
+      "size_tv": 0.0082300792341586,
+      "own_price_rel_mae": null,
+      "same_category_rel_mae": null,
+      "cross_category_rel_mae": null,
+      "zero_price_mae": 0.000196486257708704,
+      "optimal_plans_of_6": 3
+    },
+    {
+      "model": "neural_nade",
+      "test_ll": -5.215203963234574,
+      "size_tv": 0.01874469153164934,
+      "own_price_rel_mae": null,
+      "same_category_rel_mae": null,
+      "cross_category_rel_mae": null,
+      "zero_price_mae": 0.0007662972827965546,
+      "optimal_plans_of_6": 3
+    },
+    {
+      "model": "logistic_normal_vae",
+      "test_ll": -5.266505709158591,
+      "size_tv": 0.02177718917921586,
+      "own_price_rel_mae": null,
+      "same_category_rel_mae": null,
+      "cross_category_rel_mae": null,
+      "zero_price_mae": 3.1057730087296714e-05,
+      "optimal_plans_of_6": 3
+    },
+    {
+      "model": "pairwise_binary_ar",
+      "test_ll": -5.336884425913979,
+      "size_tv": 0.03514906583891487,
+      "own_price_rel_mae": null,
+      "same_category_rel_mae": null,
+      "cross_category_rel_mae": null,
+      "zero_price_mae": 0.00017291568821018344,
+      "optimal_plans_of_6": 6
+    },
+    {
+      "model": "shopper_factor_ar",
+      "test_ll": -5.345243017603583,
+      "size_tv": 0.03597237542833823,
+      "own_price_rel_mae": null,
+      "same_category_rel_mae": null,
+      "cross_category_rel_mae": null,
+      "zero_price_mae": 0.0020262665239270308,
+      "optimal_plans_of_6": 3
+    },
+    {
+      "model": "size_aware_esp",
+      "test_ll": -5.578305422262859,
+      "size_tv": 0.004825949883022139,
+      "own_price_rel_mae": null,
+      "same_category_rel_mae": null,
+      "cross_category_rel_mae": null,
+      "zero_price_mae": 0.002186170844674563,
+      "optimal_plans_of_6": 3
+    },
+    {
+      "model": "independent_parent",
+      "test_ll": -5.581417718385933,
+      "size_tv": 0.038672841312287085,
+      "own_price_rel_mae": null,
+      "same_category_rel_mae": null,
+      "cross_category_rel_mae": null,
+      "zero_price_mae": 0.000208108926955343,
+      "optimal_plans_of_6": 3
+    },
+    {
+      "model": "no_price",
+      "test_ll": -5.581482191306553,
+      "size_tv": 0.03857597668985103,
+      "own_price_rel_mae": null,
+      "same_category_rel_mae": null,
+      "cross_category_rel_mae": null,
+      "zero_price_mae": 0.0,
+      "optimal_plans_of_6": 3
+    },
+    {
+      "model": "popularity",
+      "test_ll": -5.740073327808277,
+      "size_tv": 0.03477283617966201,
+      "own_price_rel_mae": null,
+      "same_category_rel_mae": null,
+      "cross_category_rel_mae": null,
+      "zero_price_mae": 0.0,
+      "optimal_plans_of_6": 3
+    }
+  ]
+}
