@@ -90,6 +90,8 @@ Real experiments fit correction models conditional on the supplied frozen prefer
 
 ## Models
 
+Start with the [ground-up baseline guide](docs/BASELINES.md) for equations, worked interpretations, increasing model complexity, computation, and the exact learned/frozen parameters in this repository.
+
 | Runner name | Class / purpose |
 |---|---|
 | `proposed_calibrated_mission_law` | Synthetic proposed model: two pre-trip missions, category participation, counts, and race-PL product choice with jointly fitted hierarchical price penalties |
