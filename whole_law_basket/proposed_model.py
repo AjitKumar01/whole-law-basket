@@ -5,10 +5,12 @@
    (b) exact-partition pre-trip category mission mixture (computed via O(P^2) ESP
        without 2^P subset enumeration), and
    (c) exact-partition product bundle mission mixture (computed via O(P^2) ESP).
-   Preserves exact input-price autograd derivatives d log P / d dlp.
+   Preserves exact input-price autograd derivatives d log P / d dlp and supports
+   both uniform category width P and ragged category sizes P_1, ..., P_C >= 1.
 2. CalibratedMissionLaw: Differentiable O(P*M) exponential-race PL mission law
-   supporting arbitrary category size P >= 1, exact Newton count-block polish,
-   and validation-selected hierarchical price regularization.
+   supporting arbitrary (uniform or ragged) category sizes P_c >= 1, exact Newton
+   count-block polish, and validation-selected permutation-equivariant hierarchical
+   price regularization.
 """
 
 import contextlib
@@ -18,7 +20,23 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
+from .layout import CategoryLayout
 from .race_pl import race_subset_log_probabilities, race_observed_log_probability
+
+
+def _parse_category_sizes(config: dict):
+    """Parse uniform or ragged category sizes P_1, ..., P_C >= 1 from config."""
+    layout = CategoryLayout(config)
+    return (
+        layout.C,
+        layout.P,
+        list(layout.sizes),
+        layout.ragged,
+        layout.valid_mask,
+        layout.offsets,
+        layout.cat_of,
+        layout.J,
+    )
 
 
 def count_pairs(n: torch.Tensor) -> torch.Tensor:
@@ -37,7 +55,12 @@ def log_esp(u: torch.Tensor, max_deg: int | None = None) -> torch.Tensor:
         hi = min(j + 1, deg)
         prev = coeff[..., :hi].clone() if need_clone else coeff[..., :hi]
         cur = coeff[..., 1 : hi + 1].clone() if need_clone else coeff[..., 1 : hi + 1]
-        coeff[..., 1 : hi + 1] = torch.logaddexp(cur, prev + u[..., j : j + 1])
+        present = prev + u[..., j : j + 1]
+        impossible = torch.isneginf(cur) & torch.isneginf(present)
+        combined = torch.logaddexp(
+            cur.masked_fill(impossible, 0.0), present.masked_fill(impossible, 0.0)
+        )
+        coeff[..., 1 : hi + 1] = combined.masked_fill(impossible, -torch.inf)
     return coeff
 
 
@@ -80,17 +103,34 @@ def _sample_esp_subset_local(
 
 
 class StructuredEnergy(nn.Module):
-    """Category-frontier dynamic programming (DP) energy model with screened pairwise links."""
+    """Category-frontier dynamic programming (DP) energy model with screened pairwise links (supports uniform or ragged P_c)."""
 
     def __init__(self, config: dict, edges: list):
         super().__init__()
+        self.layout = CategoryLayout(config)
+        (
+            self.C,
+            self.P,
+            self.category_sizes,
+            self.is_ragged,
+            valid_mask,
+            self.offsets,
+            self.cat_of,
+            self.J,
+        ) = _parse_category_sizes(config)
         self.config = {
             **config,
+            "C": self.C,
+            "P": self.P,
+            "category_sizes": list(self.category_sizes),
             "model_family": "whole_joint_category_count_links",
             "edges": [list(edge) for edge in edges],
         }
-        self.C, self.P = int(config["C"]), int(config["P"])
-        self.J = self.C * self.P
+        self.register_buffer("valid_mask", valid_mask)
+        self.register_buffer(
+            "valid_flat_idx",
+            valid_mask.reshape(-1).nonzero(as_tuple=True)[0],
+        )
         self.edges = [tuple(edge) for edge in edges]
         self.lam = nn.Parameter(torch.zeros(self.J, dtype=torch.float64))
         self.house = nn.Parameter(
@@ -103,12 +143,20 @@ class StructuredEnergy(nn.Module):
         self.link = nn.Parameter(torch.zeros(len(edges), dtype=torch.float64))
         self.topology, self.interfaces, self.final_counts = self.compile()
 
+    def _flatten_active(self, x: torch.Tensor) -> torch.Tensor:
+        return self.layout.flatten(x)
+
+    def _format_output(
+        self, y_flat: torch.Tensor, ref_dlp: torch.Tensor
+    ) -> torch.Tensor:
+        return self.layout.format(y_flat, ref_dlp)
+
     def compile(self):
         endpoints = {j for edge in self.edges for j in edge}
         old_boundary, states = (), [(0, 0)]
         topology, interfaces = [], []
         for c in range(self.C):
-            products = tuple(range(c * self.P, (c + 1) * self.P))
+            products = tuple(range(self.offsets[c], self.offsets[c + 1]))
             interface = tuple(j for j in products if j in endpoints)
             interfaces.append(interface)
             free = tuple(j for j in products if j not in endpoints)
@@ -118,14 +166,14 @@ class StructuredEnergy(nn.Module):
                         i
                         for edge in self.edges
                         for i in edge
-                        if i // self.P <= c and any(j // self.P > c for j in edge)
+                        if self.cat_of[i] <= c and any(self.cat_of[j] > c for j in edge)
                     }
                 )
             )
             charged = [
                 k
                 for k, edge in enumerate(self.edges)
-                if max(j // self.P for j in edge) == c
+                if max(self.cat_of[j] for j in edge) == c
             ]
             records, destinations = [], {}
             for old_index, (old_mask, old_count) in enumerate(states):
@@ -182,7 +230,7 @@ class StructuredEnergy(nn.Module):
         return topology, interfaces, torch.tensor([n for _, n in states])
 
     def utilities(self, ctx: dict) -> torch.Tensor:
-        d = ctx["dlp"].reshape(-1, self.J)
+        d = self.layout.flatten(ctx["dlp"], finite=True)
         u = (
             self.lam
             + self.house[ctx["house"]]
@@ -190,17 +238,29 @@ class StructuredEnergy(nn.Module):
             - d.clamp(min=0) * self.price_above
         )
         if "baseline" in ctx:
-            u = ctx["baseline"].reshape(-1, self.J) + u
+            u = self.layout.flatten(ctx["baseline"], finite=True) + u
         return u
 
-    def energy(self, y: torch.Tensor, utility: torch.Tensor) -> torch.Tensor:
-        counts = y.reshape(-1, self.C, self.P).sum(-1)
-        value = (y * utility).sum(-1) + (count_pairs(counts) * self.category_count).sum(
-            -1
+    def _category_counts(self, y_flat: torch.Tensor) -> torch.Tensor:
+        if not self.is_ragged:
+            return y_flat.reshape(-1, self.C, self.P).sum(-1)
+        return torch.stack(
+            [
+                y_flat[:, self.offsets[c] : self.offsets[c + 1]].sum(-1)
+                for c in range(self.C)
+            ],
+            dim=-1,
         )
+
+    def energy(self, y: torch.Tensor, utility: torch.Tensor) -> torch.Tensor:
+        y_flat = self._flatten_active(y).double()
+        counts = self._category_counts(y_flat)
+        value = (y_flat * utility).sum(-1) + (
+            count_pairs(counts) * self.category_count
+        ).sum(-1)
         value += count_pairs(counts.sum(-1)) * self.global_count[0]
         for k, (i, j) in enumerate(self.edges):
-            value = value + self.link[k] * y[:, i] * y[:, j]
+            value = value + self.link[k] * y_flat[:, i] * y_flat[:, j]
         return value
 
     def partition(
@@ -243,10 +303,18 @@ class StructuredEnergy(nn.Module):
         z = torch.logsumexp(final, -1)
         return (z, layers, paths, final) if keep_paths else z
 
+    def _invalid_padded_mask(self, y: torch.Tensor) -> torch.Tensor | None:
+        if not self.is_ragged:
+            return None
+        return ~self.layout.valid_baskets(y)
+
     def log_probability(self, ctx: dict, y: torch.Tensor) -> torch.Tensor:
         utility = self.utilities(ctx)
-        y = y.reshape(-1, self.J).double()
-        return self.energy(y, utility) - self.partition(utility)
+        safe_y, valid = self.layout.safe_baskets(y)
+        y_flat = self._flatten_active(safe_y).double()
+        lp = self.energy(y_flat, utility) - self.partition(utility)
+        lp = lp.masked_fill(y_flat.sum(-1) == 0, -torch.inf)
+        return lp.masked_fill(~valid, -torch.inf)
 
     @torch.no_grad()
     def sample(self, ctx: dict, seed: int = 0) -> torch.Tensor:
@@ -277,7 +345,7 @@ class StructuredEnergy(nn.Module):
                 )
             state = topology["old"][transition]
         assert output.any(-1).all()
-        return output.reshape(-1, self.C, self.P)
+        return self._format_output(output, ctx["dlp"])
 
 
 class CompositeWholeLawEnergy(nn.Module):
@@ -293,20 +361,31 @@ class CompositeWholeLawEnergy(nn.Module):
         allow_price_mix: bool = False,
     ):
         super().__init__()
-        self.C, self.P = int(config["C"]), int(config["P"])
-        self.J = self.C * self.P
+        self.layout = CategoryLayout(config)
+        if self.layout.sizes != re_model.layout.sizes:
+            raise ValueError("Composite layout must match its frozen energy dependency")
+        self.re_model = re_model
+        for p in self.re_model.parameters():
+            p.requires_grad_(False)
+        self.C = re_model.C
+        self.P = re_model.P
+        self.category_sizes = list(re_model.category_sizes)
+        self.is_ragged = re_model.is_ragged
+        self.offsets = list(re_model.offsets)
+        self.cat_of = list(re_model.cat_of)
+        self.J = re_model.J
         self.users = int(config["users"])
         self.allow_price_mix = allow_price_mix
         self.config = {
             **config,
+            "C": self.C,
+            "P": self.P,
+            "category_sizes": list(self.category_sizes),
             "model_family": "composite_whole_law_nonparametric_count_and_missions",
             "category_missions": int(len(M_cat_init)),
             "product_missions": int(len(M_prod_fixed)),
             "allow_price_mix": allow_price_mix,
         }
-        self.re_model = re_model
-        for p in self.re_model.parameters():
-            p.requires_grad_(False)
 
         self.K_c = len(M_cat_init)
         self.K_p = len(M_prod_fixed)
@@ -353,16 +432,18 @@ class CompositeWholeLawEnergy(nn.Module):
         )
 
     def _compile_within_category(self) -> list[dict]:
-        """Compile polynomial O(P^2) within-category ESP transitions for each category c."""
+        """Compile polynomial O(P_c^2) within-category ESP transitions for each category c."""
         cat_top = []
         for c in range(self.C):
+            p_c = self.category_sizes[c]
+            off_c = self.offsets[c]
             within_edges = [
-                (k, i % self.P, j % self.P)
+                (k, i - off_c, j - off_c)
                 for k, (i, j) in enumerate(self.re_model.edges)
-                if i // self.P == c and j // self.P == c
+                if self.cat_of[i] == c and self.cat_of[j] == c
             ]
             interface = tuple(sorted({p for _, a, b in within_edges for p in (a, b)}))
-            free = tuple(p for p in range(self.P) if p not in interface)
+            free = tuple(p for p in range(p_c) if p not in interface)
             n_int = len(interface)
             masks = np.array(
                 [[(m >> k) & 1 for k in range(n_int)] for m in range(1 << n_int)],
@@ -387,6 +468,8 @@ class CompositeWholeLawEnergy(nn.Module):
                         records.append((m, extra, n, edge_val + quad_val))
             cat_top.append(
                 {
+                    "p_c": p_c,
+                    "offset": off_c,
                     "interface": interface,
                     "free": free,
                     "bits": torch.tensor(masks, dtype=torch.float64),
@@ -401,44 +484,69 @@ class CompositeWholeLawEnergy(nn.Module):
             )
         return cat_top
 
-    def _category_transition_logits(self, u_cp: torch.Tensor) -> list[torch.Tensor]:
-        lead_shape = u_cp.shape[:-2]
-        u_flat = u_cp.reshape(-1, self.C, self.P)
-        free_cats = [
-            c for c, t in enumerate(self.cat_topology) if len(t["interface"]) == 0
-        ]
-        out = [None] * self.C
-        if len(free_cats) > 0:
-            esp_free = log_esp(u_flat[:, free_cats, :])
-            n = torch.arange(1, self.P + 1, dtype=torch.float64, device=u_cp.device)
-            bonus = (
-                self.re_model.category_count[free_cats, None]
-                * (n * (n - 1.0) / 2.0)[None, :]
-            )
-            trans_free = esp_free[..., 1:] + bonus[None, :, :]
-            for idx, c in enumerate(free_cats):
-                out[c] = trans_free[:, idx, :].reshape(*lead_shape, self.P)
+    def _category_transition_logits(self, u_in: torch.Tensor) -> list[torch.Tensor]:
+        if not self.is_ragged and u_in.shape[-2:] == (self.C, self.P):
+            lead_shape = u_in.shape[:-2]
+            u_flat = u_in.reshape(-1, self.C, self.P)
+            free_cats = [
+                c for c, t in enumerate(self.cat_topology) if len(t["interface"]) == 0
+            ]
+            out = [None] * self.C
+            if len(free_cats) > 0:
+                esp_free = log_esp(u_flat[:, free_cats, :])
+                n = torch.arange(1, self.P + 1, dtype=torch.float64, device=u_in.device)
+                bonus = (
+                    self.re_model.category_count[free_cats, None]
+                    * (n * (n - 1.0) / 2.0)[None, :]
+                )
+                trans_free = esp_free[..., 1:] + bonus[None, :, :]
+                for idx, c in enumerate(free_cats):
+                    out[c] = trans_free[:, idx, :].reshape(*lead_shape, self.P)
 
+            for c, top in enumerate(self.cat_topology):
+                if out[c] is not None:
+                    continue
+                u_c = u_flat[:, c, :]
+                coeff = log_esp(u_c[:, top["free"]])
+                sel_u = (
+                    u_c[:, top["interface"]] @ top["bits"].T
+                    if len(top["interface"]) > 0
+                    else u_c.new_zeros((len(u_c), 1))
+                )
+                vals = (
+                    sel_u[:, top["mask_idx"]]
+                    + coeff[:, top["extra_idx"]]
+                    + top["const_bonus"][None, :]
+                )
+                out[c] = vals.reshape(*lead_shape, -1)
+            return out
+
+        lead_shape = u_in.shape[:-1]
+        u_flat_j = u_in.reshape(-1, self.J)
+        out = []
         for c, top in enumerate(self.cat_topology):
-            if out[c] is not None:
-                continue
-            u_c = u_flat[:, c, :]
-            coeff = log_esp(u_c[:, top["free"]])
-            sel_u = (
-                u_c[:, top["interface"]] @ top["bits"].T
-                if len(top["interface"]) > 0
-                else u_c.new_zeros((len(u_c), 1))
-            )
-            vals = (
-                sel_u[:, top["mask_idx"]]
-                + coeff[:, top["extra_idx"]]
-                + top["const_bonus"][None, :]
-            )
-            out[c] = vals.reshape(*lead_shape, -1)
+            u_c = u_flat_j[:, self.offsets[c] : self.offsets[c + 1]]
+            p_c = top["p_c"]
+            if len(top["interface"]) == 0:
+                esp_c = log_esp(u_c)[..., 1:]
+                n = torch.arange(1, p_c + 1, dtype=torch.float64, device=u_in.device)
+                vals = (
+                    esp_c
+                    + self.re_model.category_count[c] * (n * (n - 1.0) / 2.0)[None, :]
+                )
+            else:
+                coeff = log_esp(u_c[:, top["free"]])
+                sel_u = u_c[:, top["interface"]] @ top["bits"].T
+                vals = (
+                    sel_u[:, top["mask_idx"]]
+                    + coeff[:, top["extra_idx"]]
+                    + top["const_bonus"][None, :]
+                )
+            out.append(vals.reshape(*lead_shape, -1))
         return out
 
-    def _category_inclusive_weights(self, u_cp: torch.Tensor) -> torch.Tensor:
-        if self.P <= 8:
+    def _category_inclusive_weights(self, u_in: torch.Tensor) -> torch.Tensor:
+        if not self.is_ragged and self.P <= 8 and u_in.shape[-2:] == (self.C, self.P):
             if not hasattr(self, "_fast_sub_ne"):
                 subs = torch.tensor(
                     [
@@ -446,10 +554,10 @@ class CompositeWholeLawEnergy(nn.Module):
                         for m in range(1, 1 << self.P)
                     ],
                     dtype=torch.float64,
-                    device=u_cp.device,
+                    device=u_in.device,
                 )
                 cat_edge = torch.zeros(
-                    (self.C, len(subs)), dtype=torch.float64, device=u_cp.device
+                    (self.C, len(subs)), dtype=torch.float64, device=u_in.device
                 )
                 for k, (i, j) in enumerate(self.re_model.edges):
                     if i // self.P == j // self.P:
@@ -464,8 +572,8 @@ class CompositeWholeLawEnergy(nn.Module):
                 )
                 self._fast_sub_ne = (subs, base_h)
             subs, base_h = self._fast_sub_ne
-            return torch.logsumexp(u_cp @ subs.T + base_h, dim=-1)
-        trans_list = self._category_transition_logits(u_cp)
+            return torch.logsumexp(u_in @ subs.T + base_h, dim=-1)
+        trans_list = self._category_transition_logits(u_in)
         return torch.stack([torch.logsumexp(t, dim=-1) for t in trans_list], dim=-1)
 
     def build_g(self):
@@ -482,12 +590,12 @@ class CompositeWholeLawEnergy(nn.Module):
     def within_category_energy(
         self, y_flat: torch.Tensor, u_base: torch.Tensor
     ) -> torch.Tensor:
-        counts = y_flat.reshape(-1, self.C, self.P).sum(-1)
+        counts = self.re_model._category_counts(y_flat)
         val = (y_flat * u_base).sum(-1) + (
             count_pairs(counts) * self.re_model.category_count
         ).sum(-1)
         for k, (i, j) in enumerate(self.re_model.edges):
-            if i // self.P == j // self.P:
+            if self.cat_of[i] == self.cat_of[j]:
                 val = val + self.re_model.link[k] * y_flat[:, i] * y_flat[:, j]
         return val
 
@@ -532,15 +640,26 @@ class CompositeWholeLawEnergy(nn.Module):
                     cols_by_N.append(torch.logsumexp(final_unquad[:, idx], dim=-1))
             W_base = torch.stack(cols_by_N, dim=-1)
 
-            u_cp = u_base.reshape(-1, self.C, self.P)
-            log_W_cat_base = self._category_inclusive_weights(u_cp)
-
-            m_prod_cp = self.M_prod_fixed.reshape(self.K_p, self.C, self.P)
-            prod_parts = []
-            for i in range(0, len(u_base), 1024):
-                u_shifted = u_cp[i : i + 1024, None, :, :] + m_prod_cp[None, :, :, :]
-                prod_parts.append(self._category_inclusive_weights(u_shifted))
-            log_W_prod_base = torch.cat(prod_parts, 0)
+            if not self.is_ragged:
+                u_cp = u_base.reshape(-1, self.C, self.P)
+                log_W_cat_base = self._category_inclusive_weights(u_cp)
+                m_prod_cp = self.M_prod_fixed.reshape(self.K_p, self.C, self.P)
+                prod_parts = []
+                for i in range(0, len(u_base), 1024):
+                    u_shifted = (
+                        u_cp[i : i + 1024, None, :, :] + m_prod_cp[None, :, :, :]
+                    )
+                    prod_parts.append(self._category_inclusive_weights(u_shifted))
+                log_W_prod_base = torch.cat(prod_parts, 0)
+            else:
+                log_W_cat_base = self._category_inclusive_weights(u_base)
+                prod_parts = []
+                for i in range(0, len(u_base), 1024):
+                    u_shifted = (
+                        u_base[i : i + 1024, None, :] + self.M_prod_fixed[None, :, :]
+                    )
+                    prod_parts.append(self._category_inclusive_weights(u_shifted))
+                log_W_prod_base = torch.cat(prod_parts, 0)
 
             cache = {
                 "u_base": u_base,
@@ -549,7 +668,9 @@ class CompositeWholeLawEnergy(nn.Module):
                 "log_W_prod_base": log_W_prod_base,
             }
             if y is not None:
-                y_flat = y.reshape(-1, self.J).double()
+                safe_y, valid = self.layout.safe_baskets(y)
+                y_flat = self.re_model._flatten_active(safe_y).double()
+                cache["valid_baskets"] = valid
                 N_obs = y_flat.sum(-1).long()
                 e_base = self.re_model.energy(
                     y_flat, u_base
@@ -557,7 +678,7 @@ class CompositeWholeLawEnergy(nn.Module):
                     N_obs.double() * (N_obs.double() - 1.0) / 2.0
                 )
                 e_within = self.within_category_energy(y_flat, u_base)
-                pres = (y.reshape(-1, self.C, self.P).sum(-1) > 0).double()
+                pres = (self.re_model._category_counts(y_flat) > 0).double()
                 y_m_prod = y_flat @ self.M_prod_fixed.T
                 cache.update(
                     {
@@ -581,7 +702,7 @@ class CompositeWholeLawEnergy(nn.Module):
                 )
                 if not grad_needed and not mission_basis_trainable:
                     H = ctx["house"]
-                    d = ctx["dlp"].reshape(len(H), self.J)
+                    d = self.re_model._flatten_active(ctx["dlp"])
                     d_cat = self.cat_shift + self.house_cat[H] + d @ self.price_cat
                     obs_d_cat = (pres * d_cat).sum(-1)
                     base_m_e = (e_within + obs_d_cat)[:, None]
@@ -609,7 +730,7 @@ class CompositeWholeLawEnergy(nn.Module):
     def forward_cached(self, ctx, cache):
         B = len(ctx["house"])
         H = ctx["house"]
-        d = ctx["dlp"].reshape(B, self.J)
+        d = self.re_model._flatten_active(ctx["dlp"])
         u_base = cache["u_base"]
         W_base = cache["W_base"]
         y_flat = cache["y_flat"]
@@ -681,17 +802,23 @@ class CompositeWholeLawEnergy(nn.Module):
         if self.allow_price_mix:
             pi_logits = pi_logits + d @ self.price_mix
         log_pi = F.log_softmax(pi_logits, dim=-1)
-        return torch.logsumexp(log_pi + all_comp_ll, dim=-1)
+        result = torch.logsumexp(log_pi + all_comp_ll, dim=-1)
+        return result.masked_fill(~cache["valid_baskets"], -torch.inf)
 
     def log_probability(self, ctx, y):
         cache = self.precompute_split(ctx, y)
-        return self.forward_cached(ctx, cache)
+        lp = self.forward_cached(ctx, cache)
+        lp = lp.masked_fill(cache["N_obs"] == 0, -torch.inf)
+        inv = self.re_model._invalid_padded_mask(y)
+        if inv is not None:
+            lp = lp.masked_fill(inv, -torch.inf)
+        return lp
 
     @torch.no_grad()
     def sample(self, ctx, seed=0):
         B = len(ctx["house"])
         H = ctx["house"]
-        d = ctx["dlp"].reshape(B, self.J)
+        d = self.re_model._flatten_active(ctx["dlp"])
         if not hasattr(self, "_sample_cache"):
             self._sample_cache = {}
         ck = (id(ctx["dlp"]), B)
@@ -729,7 +856,7 @@ class CompositeWholeLawEnergy(nn.Module):
         gen = torch.Generator().manual_seed(seed)
         comp = torch.multinomial(pi_probs, 1, generator=gen).ravel()
 
-        output = torch.zeros((B, self.C, self.P), dtype=torch.float64)
+        output_flat = torch.zeros((B, self.J), dtype=torch.float64)
 
         idx0 = torch.where(comp == 0)[0]
         if len(idx0) > 0:
@@ -757,7 +884,7 @@ class CompositeWholeLawEnergy(nn.Module):
                 ).ravel()
                 y_1 = torch.zeros((len(rows_1), self.J), dtype=torch.float64)
                 y_1[torch.arange(len(rows_1)), j_drawn] = 1.0
-                output[rows_1] = y_1.reshape(-1, self.C, self.P)
+                output_flat[rows_1] = y_1
 
             is_gt1 = ~is_1
             if is_gt1.any():
@@ -788,7 +915,7 @@ class CompositeWholeLawEnergy(nn.Module):
                             u_gt[:, free], rem, gen
                         )
                     state = topology["old"][trans]
-                output[rows_gt] = y_gt.reshape(-1, self.C, self.P)
+                output_flat[rows_gt] = y_gt
 
         idx_m = torch.where(comp >= 1)[0]
         if len(idx_m) > 0:
@@ -806,8 +933,13 @@ class CompositeWholeLawEnergy(nn.Module):
                 m_shift[is_prod_m] = self.M_prod_fixed[kp]
                 cat_shift_m[is_prod_m] = self.M_prod_cat[kp]
 
-            u_eff = (um + m_shift).reshape(-1, self.C, self.P)
-            trans_list = self._category_transition_logits(u_eff)
+            u_eff_flat = um + m_shift
+            u_eff_in = (
+                u_eff_flat.reshape(-1, self.C, self.P)
+                if not self.is_ragged
+                else u_eff_flat
+            )
+            trans_list = self._category_transition_logits(u_eff_in)
             log_W_m = (
                 torch.stack([torch.logsumexp(t, dim=-1) for t in trans_list], dim=-1)
                 + d_cat
@@ -837,42 +969,72 @@ class CompositeWholeLawEnergy(nn.Module):
                 pres_draw[:, c] = take_c
                 active |= take_c
 
-            out_m = torch.zeros((len(idx_m), self.C, self.P), dtype=torch.float64)
+            out_m_flat = torch.zeros((len(idx_m), self.J), dtype=torch.float64)
             for c, top in enumerate(self.cat_topology):
                 act_rows = pres_draw[:, c].nonzero(as_tuple=True)[0]
                 if len(act_rows) == 0:
                     continue
+                off_c = top["offset"]
+                u_c_act = u_eff_flat[act_rows, off_c : off_c + top["p_c"]]
                 t_probs = trans_list[c][act_rows].softmax(dim=-1)
                 chosen_rec = torch.multinomial(t_probs, 1, generator=gen).ravel()
                 if len(top["interface"]) > 0:
                     m_idx = top["mask_idx"][chosen_rec]
-                    out_m[act_rows[:, None], c, list(top["interface"])] = top["bits"][
-                        m_idx
-                    ]
-                rem_extra = top["extra_idx"][chosen_rec]
+                    int_cols = [off_c + p for p in top["interface"]]
+                    out_m_flat[act_rows[:, None], int_cols] = top["bits"][m_idx]
+                    rem_extra = top["extra_idx"][chosen_rec]
+                else:
+                    rem_extra = chosen_rec + 1
                 if len(top["free"]) > 0:
-                    u_free = u_eff[act_rows, c][:, list(top["free"])]
-                    out_m[act_rows[:, None], c, list(top["free"])] = (
-                        _sample_esp_subset_local(u_free, rem_extra, gen)
+                    free_local = list(top["free"])
+                    free_cols = [off_c + p for p in free_local]
+                    u_free = u_c_act[:, free_local]
+                    out_m_flat[act_rows[:, None], free_cols] = _sample_esp_subset_local(
+                        u_free, rem_extra, gen
                     )
-            output[idx_m] = out_m
+            output_flat[idx_m] = out_m_flat
 
-        assert output.any(dim=(1, 2)).all(), "Nonempty conditioning failed"
-        return output
+        assert output_flat.any(dim=-1).all(), "Nonempty conditioning failed"
+        return self.re_model._format_output(output_flat, ctx["dlp"])
 
 
 class CalibratedMissionLaw(nn.Module):
-    """Joint pre-trip mission + count + differentiable O(P*M) exponential-race PL law."""
+    """Joint pre-trip mission + count + differentiable O(P*M) exponential-race PL law (supports uniform or ragged P_c >= 1)."""
 
     def __init__(self, config: dict):
         super().__init__()
+        self.layout = CategoryLayout(config)
+        (
+            self.C,
+            self.P,
+            self.category_sizes,
+            self.is_ragged,
+            valid_mask,
+            self.offsets,
+            self.cat_of,
+            self.J_active,
+        ) = _parse_category_sizes(config)
+        self.J = self.J_active
         self.config = {
             **config,
+            "C": self.C,
+            "P": self.P,
+            "category_sizes": list(self.category_sizes),
             "model_family": "joint_pretrip_mission_count_race_PL",
             "mission_components": 2,
         }
-        self.C, self.P = int(config["C"]), int(config["P"])
-        self.J = self.C * self.P
+        self.register_buffer("valid_mask", valid_mask)
+        self.register_buffer("valid_f", valid_mask.double())
+        self.register_buffer(
+            "cat_sizes_t", torch.tensor(self.category_sizes, dtype=torch.long)
+        )
+        self.register_buffer(
+            "cat_sizes_f", torch.tensor(self.category_sizes, dtype=torch.float64)
+        )
+        self.register_buffer(
+            "valid_flat_idx",
+            valid_mask.reshape(-1).nonzero(as_tuple=True)[0],
+        )
 
         def parameter(shape, value=0.0):
             return nn.Parameter(torch.full(shape, value, dtype=torch.float64))
@@ -892,16 +1054,51 @@ class CalibratedMissionLaw(nn.Module):
         self.count_price = parameter((self.C,), 1.0)
         self.count_offsets = parameter((self.C, max(self.P - 2, 0)))
         self.mixture_logit = parameter((1,))
+        if self.is_ragged:
+            self._mask_parameters_()
+
+    @torch.no_grad()
+    def _mask_parameters_(self):
+        if not self.is_ragged:
+            return
+        self.lam.mul_(self.valid_f)
+        self.house.mul_(self.valid_f[None, :, :])
+        self.price.mul_(self.valid_f)
+        self.product_contrast.mul_(self.valid_f)
+        for c, p_c in enumerate(self.category_sizes):
+            for k in range(2, self.P):
+                if k + 1 > p_c:
+                    self.count_offsets[c, k - 2] = -30.0
+
+    def pack_active(self, x: torch.Tensor) -> torch.Tensor:
+        return self.layout.flatten(x)
+
+    def _invalid_padded_mask(self, y: torch.Tensor) -> torch.Tensor:
+        return ~self.layout.valid_baskets(y)
+
+    def _unpack_to_cp(self, x: torch.Tensor) -> torch.Tensor:
+        return self.layout.padded(x)
+
+    def _format_output(self, y_cp: torch.Tensor, ref_dlp: torch.Tensor) -> torch.Tensor:
+        if not self.is_ragged:
+            return y_cp
+        if ref_dlp.ndim == 2 and ref_dlp.shape[1] == self.J_active:
+            return y_cp.reshape(len(y_cp), -1)[:, self.valid_flat_idx]
+        return y_cp
 
     @torch.no_grad()
     def initialize(self, train: tuple[dict, torch.Tensor]):
         ctx, y = train
-        y = y.double()
+        y = self._unpack_to_cp(y.double())
         presence = (y.sum(-1) > 0).double()
         global_incidence = (y.sum(0) + 0.5) / (len(y) + 1.0)
-        self.lam.copy_(
-            global_incidence.log() - global_incidence.log().mean(-1, keepdim=True)
-        )
+        for c, p_c in enumerate(self.category_sizes):
+            gi_c = global_incidence[c, :p_c].log()
+            self.lam[c, :p_c].copy_(gi_c - gi_c.mean())
+            if p_c < self.P:
+                self.lam[c, p_c:].zero_()
+                self.price[c, p_c:].zero_()
+                self.product_contrast[c, p_c:].zero_()
         observed = presence.mean(0)
         self.need.copy_(torch.logit((0.8 * observed).clamp(0.05, 0.95)))
         for h in range(int(self.config["users"])):
@@ -912,7 +1109,11 @@ class CalibratedMissionLaw(nn.Module):
                 int(rows.sum()) + 20.0
             )
             offset = frequency.log() - global_incidence.log()
-            self.house[h].copy_(offset - offset.mean(-1, keepdim=True))
+            for c, p_c in enumerate(self.category_sizes):
+                off_c = offset[c, :p_c]
+                self.house[h, c, :p_c].copy_(off_c - off_c.mean())
+                if p_c < self.P:
+                    self.house[h, c, p_c:].zero_()
             need = (presence[rows].sum(0) + 20.0 * observed) / (int(rows.sum()) + 20.0)
             self.house_need[h].copy_(
                 torch.logit(need.clamp(0.05, 0.95))
@@ -925,18 +1126,22 @@ class CalibratedMissionLaw(nn.Module):
             contrast *= 1.0 if contrast[0] >= 0 else -1.0
             self.need_contrast.copy_(torch.tensor(1.5 * contrast, dtype=torch.float64))
         n = y.sum(-1).long()
-        for c in range(self.C):
+        for c, p_c in enumerate(self.category_sizes):
             counts = torch.bincount(n[:, c], minlength=self.P + 1)[1:].double() + 0.5
-            if self.P >= 2:
+            if p_c >= 2:
                 eta = float((counts[1] / counts[0]).log())
                 self.count_need[c] = eta
                 for k in range(2, self.P):
-                    if not (n[:, c] == k + 1).any():
+                    if k + 1 > p_c or not (n[:, c] == k + 1).any():
                         self.count_offsets[c, k - 2] = -30.0
                     else:
                         self.count_offsets[c, k - 2] = (
                             counts[k] / counts[0]
                         ).log() - k * eta
+            else:
+                self.count_need[c] = 0.0
+                if self.P > 2:
+                    self.count_offsets[c, :].fill_(-30.0)
 
     def parameter_bounds(self) -> list[tuple[float, float]]:
         positive = {"price", "category_price", "category_hinge", "count_price"}
@@ -956,11 +1161,20 @@ class CalibratedMissionLaw(nn.Module):
             terms.append(count_eta)
         for k in range(2, self.P):
             terms.append(k * count_eta + self.count_offsets[:, k - 2])
-        return torch.stack(terms, dim=-1)
+        logits = torch.stack(terms, dim=-1)
+        if self.is_ragged:
+            k_grid = torch.arange(self.P, device=logits.device)[None, None, None, :]
+            valid_k = k_grid < self.cat_sizes_t[None, None, :, None]
+            logits = logits.masked_fill(~valid_k, -torch.inf)
+        return logits
 
     def parts(self, ctx: dict, include_subset_table: bool = False):
-        d = ctx["dlp"]
-        index = d.mean(-1)
+        d = self.layout.padded(ctx["dlp"], finite=True)
+        index = (
+            (d * self.valid_f).sum(-1) / self.cat_sizes_f
+            if self.is_ragged
+            else d.mean(-1)
+        )
         signs = d.new_tensor([0.5, -0.5])[None, :, None]
         eta = (
             self.need
@@ -977,8 +1191,14 @@ class CalibratedMissionLaw(nn.Module):
         count = F.log_softmax(count_logits, -1)
         u = (self.lam + self.house[ctx["house"]] - self.price * d)[:, None]
         u = u + signs[..., None] * self.product_contrast
+        if self.is_ragged:
+            u = u.masked_fill(~self.valid_mask[None, None, :, :], -torch.inf)
         subset = (
-            race_subset_log_probabilities(u, n_nodes=128)
+            race_subset_log_probabilities(
+                u,
+                n_nodes=128,
+                valid_mask=self.valid_mask if self.is_ragged else None,
+            )
             if include_subset_table
             else None
         )
@@ -993,15 +1213,19 @@ class CalibratedMissionLaw(nn.Module):
         eta, count, _, normalizer, mixture, u = self.parts(
             ctx, include_subset_table=False
         )
-        y_d = y.double()
+        safe_y, valid = self.layout.safe_baskets(y)
+        inv = ~valid
+        y_d = self._unpack_to_cp(safe_y.double())
         n = y_d.sum(-1).long()
         present = n > 0
-        if (n > self.P).any():
+        if (n > self.cat_sizes_t[None, :]).any():
             return torch.full(
                 (len(y_d),), -torch.inf, dtype=torch.float64, device=y.device
             )
         choice = race_observed_log_probability(
-            u, y_d[:, None, :, :].expand(-1, 2, -1, -1)
+            u,
+            y_d[:, None, :, :].expand(-1, 2, -1, -1),
+            valid_mask=self.valid_mask if self.is_ragged else None,
         )
         size = count.gather(
             -1,
@@ -1014,7 +1238,10 @@ class CalibratedMissionLaw(nn.Module):
             participation + torch.where(present[:, None], size + choice, 0.0)
         ).sum(-1) - normalizer
         result = torch.logsumexp(component + mixture, -1)
-        return result.masked_fill(n.sum(-1) == 0, -torch.inf)
+        result = result.masked_fill(n.sum(-1) == 0, -torch.inf)
+        if inv is not None:
+            result = result.masked_fill(inv, -torch.inf)
+        return result
 
     def forward(self, ctx: dict, y: torch.Tensor) -> torch.Tensor:
         return self.log_probability(ctx, y)
@@ -1025,7 +1252,7 @@ class CalibratedMissionLaw(nn.Module):
     def regularization_loss(self, moments_d: dict) -> torch.Tensor:
         """Strictly permutation-invariant hierarchical price penalty optimized jointly inside L-BFGS-B.
 
-        Every term is symmetric across categories c in {0, ..., C-1} and products p in {0, ..., P-1}
+        Every term is symmetric across categories c in {0, ..., C-1} and valid products p in {0, ..., P_c-1}
         (using only cross-category sample means and within-category sample means, with zero dependence
         on category index ordering).
         """
@@ -1039,11 +1266,12 @@ class CalibratedMissionLaw(nn.Module):
         ch = self.category_hinge
         cnt = self.count_price
         cr = self.category_cross
-        pr = self.price
+        pr = self.price * self.valid_f if self.is_ragged else self.price
+        pm = price_m * self.valid_f if self.is_ragged else price_m
 
         if not cfg_reg:
             return (
-                (pr.square() * price_m).sum()
+                (pr.square() * pm).sum()
                 + (cp.square() * idx_m).sum()
                 + (cnt.square() * idx_m).sum()
                 + (ch.square() * hinge_m).sum()
@@ -1051,8 +1279,20 @@ class CalibratedMissionLaw(nn.Module):
             )
 
         m_bar = idx_m.mean()
-        p_bar = price_m.mean()
-        pr_cm = pr.mean(dim=-1, keepdim=True)
+        if self.is_ragged:
+            p_bar = pm.sum() / self.valid_f.sum()
+            pr_cm = pr.sum(dim=-1, keepdim=True) / self.cat_sizes_f[:, None]
+            pr_gm = pr.sum() / self.valid_f.sum()
+            within_ss = ((pr - pr_cm).square() * self.valid_f).sum()
+            between_ss = (
+                (self.cat_sizes_f / self.cat_sizes_f.mean())
+                * (pr_cm.squeeze(-1) - pr_gm).square()
+            ).sum()
+        else:
+            p_bar = pm.mean()
+            pr_cm = pr.mean(dim=-1, keepdim=True)
+            within_ss = (pr - pr_cm).square().sum()
+            between_ss = (pr_cm - pr.mean()).square().sum()
 
         pen_hinge_var = (
             float(cfg_reg.get("w_hinge_var", 0.0))
@@ -1075,18 +1315,12 @@ class CalibratedMissionLaw(nn.Module):
             * m_bar
             * ((cnt - cnt.mean()) - kappa * (cp - cp.mean())).square().sum()
         )
-        pen_pr_within = (
-            float(cfg_reg.get("w_pr_within", 0.0)) * p_bar * (pr - pr_cm).square().sum()
-        )
-        pen_pr_between = (
-            float(cfg_reg.get("w_pr_between", 0.0))
-            * p_bar
-            * (pr_cm - pr.mean()).square().sum()
-        )
+        pen_pr_within = float(cfg_reg.get("w_pr_within", 0.0)) * p_bar * within_ss
+        pen_pr_between = float(cfg_reg.get("w_pr_between", 0.0)) * p_bar * between_ss
 
         l2_scale = float(cfg_reg.get("l2_price", 1.0))
         pen_l2 = l2_scale * (
-            (pr.square() * price_m).sum()
+            (pr.square() * pm).sum()
             + (cp.square() * idx_m).sum()
             + (cnt.square() * idx_m).sum()
             + float(cfg_reg.get("l2_hinge_mult", 1.0)) * (ch.square() * hinge_m).sum()
@@ -1105,14 +1339,18 @@ class CalibratedMissionLaw(nn.Module):
     def newton_polish_counts(self, train: tuple[dict, torch.Tensor]) -> dict:
         """Exact permutation-equivariant Newton count-block polish (matching polish_mission.py)."""
         ctx, y = train
-        n_cat = y.sum(-1).long()
+        y_cp = self._unpack_to_cp(y.double())
+        n_cat = y_cp.sum(-1).long()
         with torch.no_grad():
-            for c in range(self.C):
+            for c, p_c in enumerate(self.category_sizes):
                 for k in range(2, self.P):
-                    if not (n_cat[:, c] == k + 1).any():
+                    if k + 1 > p_c or not (n_cat[:, c] == k + 1).any():
                         self.count_offsets[c, k - 2] = -30.0
-        if self.P < 3:
-            return {"polished": False}
+        if self.P < 3 or any(p_c < 3 for p_c in self.category_sizes):
+            return {
+                "polished": False,
+                "reason": "count-block refinement requires every category to have at least three products; joint fitting remains active",
+            }
 
         tail = self.count_offsets[:, 1:].detach().clone()
         theta = torch.cat((self.count_need.detach(), self.count_offsets[:, 0].detach()))
@@ -1180,8 +1418,6 @@ class CalibratedMissionLaw(nn.Module):
             fit = fit_lbfgsb(self, train, validation, ridge=ridge, maxiter=maxiter)
             polish = self.newton_polish_counts(train)
             certificate = certify_fit(self, train, validation, ridge=ridge)
-            # Polishing can disturb other blocks. Refit jointly, once, if needed;
-            # never attach a pre-polish certificate to changed saved weights.
             if not certificate["stationarity_passed"]:
                 continuation = fit_lbfgsb(
                     self, train, validation, ridge=ridge, maxiter=maxiter
@@ -1361,7 +1597,8 @@ class CalibratedMissionLaw(nn.Module):
         eta, count, subset, normalizer, mixture, _ = self.parts(
             ctx, include_subset_table=True
         )
-        sets = sets.reshape(-1, self.C, self.P)
+        safe_sets, valid = self.layout.safe_baskets(sets)
+        sets = self._unpack_to_cp(safe_sets.double())
         n = sets.sum(-1).long()
         code = (sets.long() * (2 ** torch.arange(self.P, device=sets.device))).sum(-1)
         output = -normalizer[:, :, None].expand(-1, -1, len(sets)).clone()
@@ -1373,7 +1610,8 @@ class CalibratedMissionLaw(nn.Module):
                 + subset[:, :, c, code[:, c]],
                 F.logsigmoid(-eta[:, :, c, None]),
             )
-        return torch.logsumexp(output + mixture[None, :, None], 1).exp()
+        mass = torch.logsumexp(output + mixture[None, :, None], 1).exp()
+        return mass.masked_fill(~valid[None, :], 0.0)
 
     @torch.no_grad()
     def sample(self, ctx: dict, seed: int = 0) -> torch.Tensor:
@@ -1410,9 +1648,15 @@ class CalibratedMissionLaw(nn.Module):
         uniform = torch.rand(u.shape, generator=generator, dtype=u.dtype).clamp(
             1e-15, 1 - 1e-15
         )
-        order = (u - (-uniform.log()).log()).argsort(-1, descending=True)
+        gumbel_u = u - (-uniform.log()).log()
+        if self.is_ragged:
+            gumbel_u = gumbel_u.masked_fill(~self.valid_mask[None, :, :], -torch.inf)
+        order = gumbel_u.argsort(-1, descending=True)
         ranks = torch.empty_like(order)
         ranks.scatter_(
             -1, order, torch.arange(self.P, device=u.device).expand_as(order)
         )
-        return ((ranks < n[..., None]) & present[..., None]).double()
+        y_cp = ((ranks < n[..., None]) & present[..., None]).double()
+        if self.is_ragged:
+            y_cp = y_cp * self.valid_f[None, :, :]
+        return self._format_output(y_cp, ctx["dlp"])

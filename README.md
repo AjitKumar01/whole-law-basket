@@ -133,6 +133,34 @@ For a price scenario, copy the context and change `dlp`: a 10% discount adds `lo
 
 The synthetic runner compares complete basket distributions to the known generator, evaluates own/same-category/cross-category price responses, and measures promotion margin and regret under explicitly hypothetical costs and funding. Real evaluation measures held-out likelihood, calibration, Recall@5, product frequencies, size distributions, category pairs, and multiple purchases. It uses 48 draws on identical contexts; synthetic generation metrics use exact enumeration of the 12-product basket distribution.
 
+## Unequal category sizes
+
+All model classes, fitting, generation and real-data benchmark evaluation share an
+active-product layout. For example, `{"category_sizes": [1, 4, 2], "users": 3}`
+defines seven products in three categories. `C` and `P`, if supplied, must equal
+`3` and `4` (the largest category). Inputs can be category-major packed arrays
+`[batch, 7]` or padded arrays `[batch, 3, 4]`. Active price and baseline features
+must be finite. Padding features are ignored, even if NaN; basket padding must
+be zero. Empty baskets and nonbinary baskets are outside the modeled support.
+Fitting rejects them; likelihood scoring returns negative infinity.
+
+For ragged packed input, `sample` returns packed baskets and `draws` returns
+`[batch, draws, 7]`. Padded input produces padded output. Pass
+`category_sizes=[1, 4, 2]` to `generation_metrics` and `predictive_metrics` for
+either representation so padding is excluded from metric denominators. The
+uniform legacy layout keeps padded sampler output.
+
+The real loader also accepts explicit `category_sizes` in a prepared dataset's
+`config.json`. `source_product_indices` lists the corresponding products in the
+full source/parent catalogue, in target category-major order. Its length must
+match the active product count, with unique in-range indices. If omitted, the
+first active-product-count source columns are used. Offer arrays must retain the
+full parent layout because the frozen preference controls evaluate that layout
+before projection. `screen.json` edges must use target packed product indices.
+Projected empty baskets are removed. This supports explicit prepared projections;
+it does not infer categories or preprocess raw transactions. The bundled ERIM
+and Dunnhumby projections and their data files are unchanged.
+
 ## Checkpoints and convergence
 
 New checkpoints contain `state_dict`, model `config`, selected `regularization_config`, and trainable parameter names. Sidecar records fingerprint prepared splits, code, fixed state, dependencies, versions, fitting policy, and checkpoint bytes. Matching checkpoints are recertified and re-evaluated; saved scores are never substituted. Legacy or mismatched checkpoints are rejected.

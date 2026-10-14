@@ -122,7 +122,16 @@ def _load_synthetic_split_pair(name: str, family: str, seed: int):
 
 
 @torch.no_grad()
-def _compute_exact_mass(
+def _compute_exact_mass(model, ctx, sets_t):
+    """Evaluate an explicit set list on the same support as direct likelihood."""
+    safe, valid = model.layout.safe_baskets(sets_t)
+    mass = _compute_exact_mass_valid(model, ctx, safe)
+    mass[:, ~valid.cpu().numpy()] = 0.0
+    return mass
+
+
+@torch.no_grad()
+def _compute_exact_mass_valid(
     model: torch.nn.Module, ctx: dict, sets_t: torch.Tensor
 ) -> np.ndarray:
     if hasattr(model, "exact_mass"):
@@ -133,17 +142,17 @@ def _compute_exact_mass(
         u = model.utilities(ctx)
         a = F.softplus(u).sum(-1)
         norm = a + torch.log((-torch.expm1(-a)).clamp(min=1e-30))
-        y_sets = sets_t.reshape(-1, model.J).double()
+        y_sets = model.layout.flatten(sets_t).double()
         return (u @ y_sets.T - norm[:, None]).exp().cpu().numpy()
     if isinstance(model, SizeAwareESP):
         u, q = model.terms(ctx)
         e = log_esp(u)
-        y_sets = sets_t.reshape(-1, model.J).double()
+        y_sets = model.layout.flatten(sets_t).double()
         n_sets = y_sets.sum(-1).long()
         return (u @ y_sets.T - e[:, n_sets] + q[:, n_sets - 1]).exp().cpu().numpy()
     if isinstance(model, IndependentCategoriesESP):
         u, esp, count_lp, eta = model.terms(ctx)
-        y_cat = sets_t.reshape(-1, model.C, model.P).double()
+        y_cat = model.layout.padded(sets_t).double()
         n = y_cat.sum(-1).long()
         x = (n > 0).double()
         cat_ll = (
@@ -163,7 +172,7 @@ def _compute_exact_mass(
             )
         return (cat_ll + within).exp().cpu().numpy()
     if isinstance(model, LatentMissionESP):
-        y_cat = sets_t.reshape(-1, model.C, model.P).double()
+        y_cat = model.layout.padded(sets_t).double()
         n = y_cat.sum(-1).long()
         x = (n > 0).double()
         w = F.log_softmax(model.weights[ctx["house"]], dim=-1)
@@ -195,7 +204,7 @@ def _compute_exact_mass(
         )
     B = len(ctx["house"])
     S = len(sets_t)
-    sets_cp = sets_t.reshape(S, model.C, model.P)
+    sets_cp = model.layout.format(model.layout.flatten(sets_t), ctx["dlp"])
     out = np.empty((B, S), dtype=float)
     chunk = 16
     for start in range(0, B, chunk):
@@ -208,9 +217,9 @@ def _compute_exact_mass(
             for k, v in ctx.items()
         }
         rep_y = (
-            sets_cp[None, :, :, :]
-            .expand(b_len, S, model.C, model.P)
-            .reshape(b_len * S, model.C, model.P)
+            sets_cp.unsqueeze(0)
+            .expand(b_len, S, *sets_cp.shape[1:])
+            .reshape(b_len * S, *sets_cp.shape[1:])
         )
         lp = model.log_probability(rep_ctx, rep_y).reshape(b_len, S)
         out[start:end] = lp.exp().cpu().numpy()
@@ -225,14 +234,13 @@ def build_composite_model(
 ) -> CompositeWholeLawEnergy:
     """Build CompositeWholeLawEnergy with price-invariant pre-trip mission prior (`allow_price_mix=False`)."""
     y_tr = train[1]
-    C, P = int(config["C"]), int(config["P"])
-    J = C * P
-    y_flat = y_tr.reshape(-1, J).double()
-    pres = (y_tr.reshape(-1, C, P).sum(-1) > 0).double()
+    C, J = re_model.C, re_model.J
+    y_flat = re_model.layout.flatten(y_tr).double()
+    pres = (re_model._category_counts(y_flat) > 0).double()
 
     p_centered = pres - pres.mean(0, keepdim=True)
     _, _, Vt_cat = torch.linalg.svd(p_centered[:25000], full_matrices=False)
-    n_svd_c = min(6, C)
+    n_svd_c = min(6, C, len(p_centered))
     K_c = 4 + 2 * n_svd_c
     M_cat_init = torch.zeros((K_c, C), dtype=torch.float64)
     M_cat_init[:4, :] = torch.linspace(-1.2, 1.8, 4, dtype=torch.float64)[:, None]
@@ -481,8 +489,13 @@ def evaluate_real_dataset(dataset, results_dir, model_group="all", mode="fresh")
             axis=1,
         )
         generation_seconds = time.perf_counter() - started
-        gm = generation_metrics(samples, observed, clusters["house"][rows_gen])
-        pm = predictive_metrics(samples, observed)
+        gm = generation_metrics(
+            samples,
+            observed,
+            clusters["house"][rows_gen],
+            category_sizes=model.layout.sizes,
+        )
+        pm = predictive_metrics(samples, observed, category_sizes=model.layout.sizes)
         summary = {
             "model": name,
             "family": model.config.get(

@@ -6,10 +6,12 @@ directory or package dependencies.
 
 import json
 import math
+import numbers
 from pathlib import Path
 import numpy as np
 import torch
 from torch import nn
+from .layout import CategoryLayout
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -140,7 +142,29 @@ def load_real_dataset(
         p.requires_grad_(False)
 
     config = json.loads((source / "config.json").read_text())
-    if dataset == "erim":
+    explicit_layout = any(key in config for key in ("category_sizes", "P_c", "P_list"))
+    if explicit_layout:
+        layout = CategoryLayout(config)
+        source_items = config.get("source_product_indices", list(range(layout.J)))
+        if any(
+            isinstance(i, bool) or not isinstance(i, numbers.Integral)
+            for i in source_items
+        ):
+            raise ValueError(
+                "source_product_indices must contain integer product indices"
+            )
+        items = np.asarray(source_items, dtype=int)
+        if (
+            len(items) != layout.J
+            or len(set(items)) != layout.J
+            or (items < 0).any()
+            or (items >= parent.C * parent.P).any()
+        ):
+            raise ValueError(
+                "source_product_indices must map each target product to a unique parent/source product"
+            )
+        config = layout.config(config)
+    elif dataset == "erim":
         items = np.arange(28)
     else:
         with np.load(source / "train.npz", allow_pickle=False) as data:
@@ -156,6 +180,8 @@ def load_real_dataset(
             "categories": [config["categories"][i] for i in categories],
         }
 
+    layout = CategoryLayout(config)
+    config = layout.config(config)
     price = parent.choice_price[items].detach().clone()
     splits = {}
     clusters = {}
@@ -173,12 +199,22 @@ def load_real_dataset(
             raw = {k: archive[k] for k in archive.files}
         if "packed_member" in raw:
             full_y = np.unpackbits(raw["packed_member"], axis=1)
-            projected = full_y[:, items].reshape(-1, C, P)
-            keep = np.flatnonzero(projected.any((1, 2)))
+            projected_flat = full_y[:, items]
+            projected = (
+                projected_flat if layout.ragged else projected_flat.reshape(-1, C, P)
+            )
+            keep = np.flatnonzero(projected_flat.any(-1))
             indices = raw["context"][keep]
         else:
-            projected = raw["member"]
-            keep = np.arange(len(projected))
+            full_y = raw["member"].reshape(len(raw["member"]), -1)
+            if full_y.shape[1] == parent.C * parent.P:
+                projected_flat = full_y[:, items]
+            else:
+                projected_flat = layout.flatten(torch.as_tensor(raw["member"])).numpy()
+            projected = (
+                projected_flat if layout.ragged else projected_flat.reshape(-1, C, P)
+            )
+            keep = np.flatnonzero(projected_flat.any(-1))
             indices = None
         ctx = {
             k: torch.tensor(
@@ -189,7 +225,8 @@ def load_real_dataset(
         }
         n = len(keep)
         for k in ("dlp", "disp", "mail", "baseline"):
-            ctx[k] = torch.empty((n, C, P), dtype=torch.float64)
+            shape = (n, layout.J) if layout.ragged else (n, C, P)
+            ctx[k] = torch.empty(shape, dtype=torch.float64)
         with torch.no_grad():
             for start in range(0, n, 8192):
                 end = min(start + 8192, n)
@@ -201,13 +238,13 @@ def load_real_dataset(
                         else np.array(shared[k][indices[start:end]], copy=True)
                     )
                     batch[k] = torch.tensor(values, dtype=torch.float64)
+                    active = batch[k].reshape(end - start, -1)[:, items]
                     ctx[k][start:end] = (
-                        batch[k].reshape(end - start, -1)[:, items].reshape(-1, C, P)
+                        active if layout.ragged else active.reshape(-1, C, P)
                     )
+                active_base = parent.baseline(batch).reshape(end - start, -1)[:, items]
                 ctx["baseline"][start:end] = (
-                    parent.baseline(batch)
-                    .reshape(end - start, -1)[:, items]
-                    .reshape(-1, C, P)
+                    active_base if layout.ragged else active_base.reshape(-1, C, P)
                 )
         y = torch.tensor(projected[keep], dtype=torch.float64)
         splits[split_name] = (ctx, y)

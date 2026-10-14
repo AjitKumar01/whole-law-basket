@@ -25,6 +25,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from .proposed_model import log_esp
+from .layout import CategoryLayout
 
 
 def _nonempty_ar_normalizer(empty_logits: torch.Tensor) -> torch.Tensor:
@@ -91,40 +92,64 @@ def _sample_esp_subset(
     return output
 
 
-class PooledPopularity(nn.Module):
+class _BasketModel(nn.Module):
+    """Common active support; likelihoods reject empty, nonbinary, or padded items."""
+
+    def _setup_layout(self, config):
+        self.layout = CategoryLayout(config)
+        self.C, self.P, self.J = self.layout.C, self.layout.P, self.layout.J
+        self.is_ragged = self.layout.ragged
+        self.config = self.layout.config(self.config)
+
+    def _flat(self, value, finite=True):
+        return self.layout.flatten(value, finite=finite)
+
+    def _padded(self, value, finite=True):
+        return self.layout.padded(value, finite=finite)
+
+    def _format_sample(self, value, ctx):
+        flat = self.layout.flatten(value)
+        reference = ctx["dlp"] if "dlp" in ctx else self.layout.padded(flat)
+        return self.layout.format(flat, reference)
+
+    def log_probability(self, ctx, y):
+        safe, valid = self.layout.safe_baskets(y)
+        result = self._log_probability(ctx, safe)
+        return result.masked_fill(~valid, -torch.inf)
+
+
+class PooledPopularity(_BasketModel):
     """Baseline 1: Pooled conditional independent products (item intercepts only)."""
 
     def __init__(self, config: dict):
         super().__init__()
         self.config = {**config, "benchmark_baseline": "popularity"}
-        self.C, self.P = int(config["C"]), int(config["P"])
-        self.J = self.C * self.P
+        self._setup_layout(config)
         self.lam = nn.Parameter(torch.zeros(self.J, dtype=torch.float64))
 
     def utilities(self, ctx: dict) -> torch.Tensor:
         B = len(ctx["house"])
         return self.lam[None, :].expand(B, -1)
 
-    def log_probability(self, ctx: dict, y: torch.Tensor) -> torch.Tensor:
+    def _log_probability(self, ctx: dict, y: torch.Tensor) -> torch.Tensor:
         a = F.softplus(self.lam).sum()
         norm = a + torch.log((-torch.expm1(-a)).clamp(min=1e-30))
-        return y.reshape(-1, self.J).double() @ self.lam - norm
+        return self._flat(y, finite=False).double() @ self.lam - norm
 
     @torch.no_grad()
     def sample(self, ctx: dict, seed: int = 0) -> torch.Tensor:
         u = self.utilities(ctx)
         gen = torch.Generator().manual_seed(seed)
-        return _sample_nonempty_bernoulli(u, gen).reshape(-1, self.C, self.P)
+        return self._format_sample(_sample_nonempty_bernoulli(u, gen), ctx)
 
 
-class NoPriceIndependent(nn.Module):
+class NoPriceIndependent(_BasketModel):
     """Baseline 2: Personalized independent logit with price sensitivity frozen at zero."""
 
     def __init__(self, config: dict, has_baseline: bool = False):
         super().__init__()
         self.config = {**config, "benchmark_baseline": "no_price"}
-        self.C, self.P = int(config["C"]), int(config["P"])
-        self.J = self.C * self.P
+        self._setup_layout(config)
         self.lam = nn.Parameter(torch.zeros(self.J, dtype=torch.float64))
         self.house = nn.Parameter(
             torch.zeros((int(config["users"]), self.J), dtype=torch.float64),
@@ -133,17 +158,17 @@ class NoPriceIndependent(nn.Module):
 
     def utilities(self, ctx: dict) -> torch.Tensor:
         B = len(ctx["house"])
-        base = ctx["baseline"].reshape(B, self.J) if "baseline" in ctx else 0.0
+        base = self._flat(ctx["baseline"]) if "baseline" in ctx else 0.0
         u = base + self.lam
         if self.house.requires_grad or bool(self.house.abs().max() > 0):
             u = u + self.house[ctx["house"]]
         return u
 
-    def log_probability(self, ctx: dict, y: torch.Tensor) -> torch.Tensor:
+    def _log_probability(self, ctx: dict, y: torch.Tensor) -> torch.Tensor:
         u = self.utilities(ctx)
         a = F.softplus(u).sum(-1)
         return (
-            (u * y.reshape(-1, self.J).double()).sum(-1)
+            (u * self._flat(y, finite=False).double()).sum(-1)
             - a
             - torch.log((-torch.expm1(-a)).clamp(min=1e-30))
         )
@@ -152,17 +177,16 @@ class NoPriceIndependent(nn.Module):
     def sample(self, ctx: dict, seed: int = 0) -> torch.Tensor:
         u = self.utilities(ctx)
         gen = torch.Generator().manual_seed(seed)
-        return _sample_nonempty_bernoulli(u, gen).reshape(-1, self.C, self.P)
+        return self._format_sample(_sample_nonempty_bernoulli(u, gen), ctx)
 
 
-class PersonalizedIndependent(nn.Module):
+class PersonalizedIndependent(_BasketModel):
     """Baseline 3: Full personalized independent binary logit conditioned on nonempty basket."""
 
     def __init__(self, config: dict, price: torch.Tensor | None = None):
         super().__init__()
         self.config = {**config, "benchmark_baseline": "independent_parent"}
-        self.C, self.P = int(config["C"]), int(config["P"])
-        self.J = self.C * self.P
+        self._setup_layout(config)
         self.lam = nn.Parameter(torch.zeros(self.J, dtype=torch.float64))
         self.house = nn.Parameter(
             torch.zeros((int(config["users"]), self.J), dtype=torch.float64)
@@ -176,15 +200,15 @@ class PersonalizedIndependent(nn.Module):
 
     def utilities(self, ctx: dict) -> torch.Tensor:
         B = len(ctx["house"])
-        base = ctx["baseline"].reshape(B, self.J) if "baseline" in ctx else 0.0
-        d = ctx["dlp"].reshape(B, self.J)
+        base = self._flat(ctx["baseline"]) if "baseline" in ctx else 0.0
+        d = self._flat(ctx["dlp"])
         return base + self.lam + self.house[ctx["house"]] - self.price * d
 
-    def log_probability(self, ctx: dict, y: torch.Tensor) -> torch.Tensor:
+    def _log_probability(self, ctx: dict, y: torch.Tensor) -> torch.Tensor:
         u = self.utilities(ctx)
         a = F.softplus(u).sum(-1)
         return (
-            (u * y.reshape(-1, self.J).double()).sum(-1)
+            (u * self._flat(y, finite=False).double()).sum(-1)
             - a
             - torch.log((-torch.expm1(-a)).clamp(min=1e-30))
         )
@@ -193,10 +217,10 @@ class PersonalizedIndependent(nn.Module):
     def sample(self, ctx: dict, seed: int = 0) -> torch.Tensor:
         u = self.utilities(ctx)
         gen = torch.Generator().manual_seed(seed)
-        return _sample_nonempty_bernoulli(u, gen).reshape(-1, self.C, self.P)
+        return self._format_sample(_sample_nonempty_bernoulli(u, gen), ctx)
 
 
-class SizeAwareESP(nn.Module):
+class SizeAwareESP(_BasketModel):
     """Baseline 4: Predicted basket size P(N | h, p) + conditional ESP subset choice."""
 
     def __init__(
@@ -208,8 +232,7 @@ class SizeAwareESP(nn.Module):
     ):
         super().__init__()
         self.config = {**config, "benchmark_baseline": "size_aware_esp"}
-        self.C, self.P = int(config["C"]), int(config["P"])
-        self.J = self.C * self.P
+        self._setup_layout(config)
         self.parent = parent
         if self.parent is not None:
             for p in self.parent.parameters():
@@ -223,7 +246,7 @@ class SizeAwareESP(nn.Module):
         if train_y is not None:
             counts = (
                 np.bincount(
-                    train_y.reshape(-1, self.J).sum(-1).numpy().astype(int),
+                    self._flat(train_y, finite=False).sum(-1).numpy().astype(int),
                     minlength=self.J + 1,
                 )[1:]
                 + 0.5
@@ -255,19 +278,19 @@ class SizeAwareESP(nn.Module):
                 ctx["house"], weights=variance, minlength=len(self.need)
             )
             / n,
-            "price_slope": (variance * ctx["dlp"].reshape(n, -1).mean(-1).square())
+            "price_slope": (variance * self._flat(ctx["dlp"]).mean(-1).square())
             .mean()
             .reshape(1),
         }
 
     def terms(self, ctx: dict):
         B = len(ctx["house"])
-        d = ctx["dlp"].reshape(B, self.J)
+        d = self._flat(ctx["dlp"])
         if self.parent is not None:
             with torch.no_grad():
                 u = self.parent.utilities(ctx).reshape(B, self.J)
         else:
-            base = ctx["baseline"].reshape(B, self.J) if "baseline" in ctx else 0.0
+            base = self._flat(ctx["baseline"]) if "baseline" in ctx else 0.0
             u = base - self.base_price * d
         n_grid = torch.arange(self.J, dtype=torch.float64, device=d.device)
         slope = self.need[ctx["house"]] + self.price_slope[0] * d.mean(-1)
@@ -276,7 +299,7 @@ class SizeAwareESP(nn.Module):
         )
         return u, q
 
-    def log_probability(self, ctx: dict, y: torch.Tensor) -> torch.Tensor:
+    def _log_probability(self, ctx: dict, y: torch.Tensor) -> torch.Tensor:
         grad_in = any(
             isinstance(v, torch.Tensor) and v.requires_grad for v in ctx.values()
         )
@@ -291,13 +314,13 @@ class SizeAwareESP(nn.Module):
             return within + q.gather(1, n_idx).ravel()
 
         u, q = self.terms(ctx)
-        y_flat = y.reshape(-1, self.J).double()
+        y_flat = self._flat(y, finite=False).double()
         n = y_flat.sum(-1).long()
         if not grad_in:
             with torch.no_grad():
                 e = log_esp(u, max_deg=int(n.max().item()))
                 within = (u * y_flat).sum(-1) - e.gather(1, n[:, None]).ravel()
-                d_mean = ctx["dlp"].reshape(len(y_flat), self.J).mean(-1)
+                d_mean = self._flat(ctx["dlp"]).mean(-1)
                 n_idx = (n - 1)[:, None]
                 self._within_cache[cache_key] = (within, d_mean, n_idx)
             return within + q.gather(1, n_idx).ravel()
@@ -311,10 +334,10 @@ class SizeAwareESP(nn.Module):
         gen = torch.Generator().manual_seed(seed)
         sizes = torch.multinomial(q.exp(), 1, generator=gen).ravel() + 1
         out = _sample_esp_subset(u, sizes, gen)
-        return out.reshape(-1, self.C, self.P)
+        return self._format_sample(out, ctx)
 
 
-class IndependentCategoriesESP(nn.Module):
+class IndependentCategoriesESP(_BasketModel):
     """Baseline 5: Category-specific participation + within-category ESP count curvature."""
 
     def __init__(
@@ -325,8 +348,7 @@ class IndependentCategoriesESP(nn.Module):
     ):
         super().__init__()
         self.config = {**config, "benchmark_baseline": "independent_categories_esp"}
-        self.C, self.P = int(config["C"]), int(config["P"])
-        self.J = self.C * self.P
+        self._setup_layout(config)
         self.parent = parent
         if self.parent is not None:
             for p in self.parent.parameters():
@@ -351,17 +373,17 @@ class IndependentCategoriesESP(nn.Module):
 
     def _base_u_and_esp(self, ctx: dict):
         B = len(ctx["house"])
-        d = ctx["dlp"].reshape(B, self.C, self.P)
+        d = self._padded(ctx["dlp"])
         if self.parent is not None:
             with torch.no_grad():
-                u0 = self.parent.utilities(ctx).reshape(B, self.C, self.P)
+                u0 = self._padded(self.parent.utilities(ctx))
         else:
-            base = (
-                ctx["baseline"].reshape(B, self.C, self.P) if "baseline" in ctx else 0.0
-            )
-            u0 = base - self.base_price.reshape(1, self.C, self.P) * d
+            base = self._padded(ctx["baseline"]) if "baseline" in ctx else 0.0
+            u0 = base - self._padded(self.base_price[None, :]) * d
         u = u0 + self.item_lam[None, :, :]
-        return u, log_esp(u)
+        return u, log_esp(
+            u.masked_fill(~self.layout.valid_mask.to(u.device), -torch.inf)
+        )
 
     def terms(self, ctx: dict):
         u, esp = self._base_u_and_esp(ctx)
@@ -376,7 +398,7 @@ class IndependentCategoriesESP(nn.Module):
         )
         return u, esp, F.log_softmax(a, dim=-1), eta
 
-    def log_probability(self, ctx: dict, y: torch.Tensor) -> torch.Tensor:
+    def _log_probability(self, ctx: dict, y: torch.Tensor) -> torch.Tensor:
         grad_in = any(
             isinstance(v, torch.Tensor) and v.requires_grad for v in ctx.values()
         )
@@ -385,7 +407,7 @@ class IndependentCategoriesESP(nn.Module):
             if cache_key not in self._split_cache:
                 with torch.no_grad():
                     u, esp = self._base_u_and_esp(ctx)
-                    y_cat = y.reshape(-1, self.C, self.P).double()
+                    y_cat = self._padded(y, finite=False).double()
                     n = y_cat.sum(-1).long()
                     x = (n > 0).double()
                     u_minus_esp = (u * y_cat).sum(-1) - esp.gather(
@@ -415,7 +437,7 @@ class IndependentCategoriesESP(nn.Module):
             return cat_ll + (within * x).sum(-1)
 
         u, esp, count_lp, eta = self.terms(ctx)
-        y_cat = y.reshape(-1, self.C, self.P).double()
+        y_cat = self._padded(y, finite=False).double()
         n = y_cat.sum(-1).long()
         x = (n > 0).double()
         cat_ll = (x * F.logsigmoid(eta) + (1.0 - x) * F.logsigmoid(-eta)).sum(
@@ -445,12 +467,16 @@ class IndependentCategoriesESP(nn.Module):
                     + 1
                 )
                 out[active_rows, c] = _sample_esp_subset(
-                    u[active_rows, c], sizes_c, gen
+                    u[active_rows, c].masked_fill(
+                        ~self.layout.valid_mask[c].to(u.device), -torch.inf
+                    ),
+                    sizes_c,
+                    gen,
                 )
-        return out
+        return self._format_sample(out, ctx)
 
 
-class LatentMissionESP(nn.Module):
+class LatentMissionESP(_BasketModel):
     """Baseline 6: K=2 latent-mission mixture of category-independent ESP laws (MissionESP)."""
 
     def __init__(
@@ -463,8 +489,7 @@ class LatentMissionESP(nn.Module):
     ):
         super().__init__()
         self.config = {**config, "benchmark_baseline": f"mission_esp_K{K}"}
-        self.C, self.P = int(config["C"]), int(config["P"])
-        self.J = self.C * self.P
+        self._setup_layout(config)
         self.K = K
         self.parent = parent
         if self.parent is not None:
@@ -494,17 +519,15 @@ class LatentMissionESP(nn.Module):
 
     def terms(self, ctx: dict, m: int):
         B = len(ctx["house"])
-        d = ctx["dlp"].reshape(B, self.C, self.P)
+        d = self._padded(ctx["dlp"])
         if self.parent is not None:
             with torch.no_grad():
-                u0 = self.parent.utilities(ctx).reshape(B, self.C, self.P)
+                u0 = self._padded(self.parent.utilities(ctx))
         else:
-            base = (
-                ctx["baseline"].reshape(B, self.C, self.P) if "baseline" in ctx else 0.0
-            )
-            u0 = base - self.base_price.reshape(1, self.C, self.P) * d
+            base = self._padded(ctx["baseline"]) if "baseline" in ctx else 0.0
+            u0 = base - self._padded(self.base_price[None, :]) * d
         u = u0 + self.taste[m][None, :, :]
-        esp = log_esp(u)
+        esp = log_esp(u.masked_fill(~self.layout.valid_mask.to(u.device), -torch.inf))
         n = torch.arange(1, self.P + 1, dtype=torch.float64, device=u.device)
         penalty = self.rho[m, :, None] * (n * (n - 1) / 2.0) - self.nu[m, :, None] * (
             n - 1.0
@@ -528,7 +551,7 @@ class LatentMissionESP(nn.Module):
         )
         return cat_ll + (within * x).sum(-1)
 
-    def log_probability(self, ctx: dict, y: torch.Tensor) -> torch.Tensor:
+    def _log_probability(self, ctx: dict, y: torch.Tensor) -> torch.Tensor:
         grad_in = any(
             isinstance(v, torch.Tensor) and v.requires_grad for v in ctx.values()
         )
@@ -537,24 +560,26 @@ class LatentMissionESP(nn.Module):
             if cache_key not in self._split_cache:
                 with torch.no_grad():
                     B = len(ctx["house"])
-                    d = ctx["dlp"].reshape(B, self.C, self.P)
+                    d = self._padded(ctx["dlp"])
                     if self.parent is not None:
-                        u0 = self.parent.utilities(ctx).reshape(B, self.C, self.P)
+                        u0 = self._padded(self.parent.utilities(ctx))
                     else:
                         base = (
-                            ctx["baseline"].reshape(B, self.C, self.P)
-                            if "baseline" in ctx
-                            else 0.0
+                            self._padded(ctx["baseline"]) if "baseline" in ctx else 0.0
                         )
-                        u0 = base - self.base_price.reshape(1, self.C, self.P) * d
-                    y_cat = y.reshape(B, self.C, self.P).double()
+                        u0 = base - self._padded(self.base_price[None, :]) * d
+                    y_cat = self._padded(y, finite=False).double()
                     n = y_cat.sum(-1).long()
                     x = (n > 0).double()
                     n_idx = (n - 1).clamp(min=0)[..., None]
                     per_m = []
                     for m in range(self.K):
                         um = u0 + self.taste[m][None, :, :]
-                        espm = log_esp(um)
+                        espm = log_esp(
+                            um.masked_fill(
+                                ~self.layout.valid_mask.to(um.device), -torch.inf
+                            )
+                        )
                         u_minus_esp = (um * y_cat).sum(-1) - espm.gather(
                             -1, n[..., None]
                         ).squeeze(-1)
@@ -582,7 +607,7 @@ class LatentMissionESP(nn.Module):
             w = F.log_softmax(self.weights[ctx["house"]], dim=-1)
             return torch.logsumexp(torch.stack(comps, dim=-1) + w, dim=-1)
 
-        y_cat = y.reshape(-1, self.C, self.P).double()
+        y_cat = self._padded(y, finite=False).double()
         w = F.log_softmax(self.weights[ctx["house"]], dim=-1)
         comp = torch.stack(
             [self.component_ll(ctx, y_cat, m) for m in range(self.K)], dim=-1
@@ -613,12 +638,18 @@ class LatentMissionESP(nn.Module):
                         ).ravel()
                         + 1
                     )
-                    sub_out[act, c] = _sample_esp_subset(u[act, c], sizes_c, gen)
+                    sub_out[act, c] = _sample_esp_subset(
+                        u[act, c].masked_fill(
+                            ~self.layout.valid_mask[c].to(u.device), -torch.inf
+                        ),
+                        sizes_c,
+                        gen,
+                    )
             out[rows] = sub_out
-        return out
+        return self._format_sample(out, ctx)
 
 
-class PairwiseBinaryAR(nn.Module):
+class PairwiseBinaryAR(_BasketModel):
     """Baseline 7: Personalized pairwise product autoregression (tril(W, -1)), exact nonempty conditioning."""
 
     def __init__(
@@ -629,8 +660,7 @@ class PairwiseBinaryAR(nn.Module):
     ):
         super().__init__()
         self.config = {**config, "benchmark_baseline": "pairwise_binary_ar"}
-        self.C, self.P = int(config["C"]), int(config["P"])
-        self.J = self.C * self.P
+        self._setup_layout(config)
         self.parent = parent
         if self.parent is not None:
             for p in self.parent.parameters():
@@ -660,14 +690,14 @@ class PairwiseBinaryAR(nn.Module):
 
     def _base_u(self, ctx: dict) -> torch.Tensor:
         B = len(ctx["house"])
-        d = ctx["dlp"].reshape(B, self.J)
+        d = self._flat(ctx["dlp"])
         if self.parent is not None:
             with torch.no_grad():
                 base = (self.parent.lam + self.parent.house[ctx["house"]]).reshape(
                     B, self.J
                 )
             return base - self.base_price * d
-        base = ctx["baseline"].reshape(B, self.J) if "baseline" in ctx else 0.0
+        base = self._flat(ctx["baseline"]) if "baseline" in ctx else 0.0
         if not self.price.requires_grad and not self.house.requires_grad:
             return base - self.base_price * d
         return base + self.house[ctx["house"]] - self.price * d
@@ -675,7 +705,7 @@ class PairwiseBinaryAR(nn.Module):
     def unary(self, ctx: dict) -> torch.Tensor:
         return self._base_u(ctx) + self.lam
 
-    def log_probability(self, ctx: dict, y: torch.Tensor) -> torch.Tensor:
+    def _log_probability(self, ctx: dict, y: torch.Tensor) -> torch.Tensor:
         grad_in = any(
             isinstance(v, torch.Tensor) and v.requires_grad for v in ctx.values()
         )
@@ -689,7 +719,7 @@ class PairwiseBinaryAR(nn.Module):
                 with torch.no_grad():
                     self._split_cache[cache_key] = (
                         self._base_u(ctx),
-                        y.reshape(-1, self.J).double(),
+                        self._flat(y, finite=False).double(),
                     )
             u0, y_flat = self._split_cache[cache_key]
             u = u0 + self.lam
@@ -699,7 +729,7 @@ class PairwiseBinaryAR(nn.Module):
                 y_flat * F.logsigmoid(eta) + (1.0 - y_flat) * F.logsigmoid(-eta)
             ).sum(-1) - _nonempty_ar_normalizer(u)
 
-        y_flat = y.reshape(-1, self.J).double()
+        y_flat = self._flat(y, finite=False).double()
         u = self.unary(ctx)
         W_tril = torch.tril(self.W, -1)
         eta = u + y_flat @ W_tril.T
@@ -709,7 +739,8 @@ class PairwiseBinaryAR(nn.Module):
 
     @torch.no_grad()
     def exact_mass(self, ctx: dict, sets: torch.Tensor) -> torch.Tensor:
-        y_sets = sets.reshape(-1, self.J).double()
+        safe_sets, valid = self.layout.safe_baskets(sets)
+        y_sets = self._flat(safe_sets, finite=False).double()
         u_all = self.unary(ctx)
         norm_all = _nonempty_ar_normalizer(u_all)
         W_tril = torch.tril(self.W, -1)
@@ -723,7 +754,7 @@ class PairwiseBinaryAR(nn.Module):
                 + (1.0 - y_sets[None, :, :]) * F.logsigmoid(-eta)
             ).sum(-1) - norm_all[s:e, None]
             out[s:e] = ll.exp()
-        return out
+        return out.masked_fill(~valid[None, :], 0.0)
 
     @torch.no_grad()
     def sample(self, ctx: dict, seed: int = 0) -> torch.Tensor:
@@ -751,10 +782,10 @@ class PairwiseBinaryAR(nn.Module):
             take = torch.rand(B, generator=gen, device=u.device, dtype=u.dtype) < q
             y[:, j] = take.to(u.dtype)
             active |= take
-        return y.reshape(B, self.C, self.P)
+        return self._format_sample(y, ctx)
 
 
-class LowRankBilinearAR(nn.Module):
+class LowRankBilinearAR(_BasketModel):
     """Baseline 8: Fixed-Order Low-Rank Bilinear Binary Autoregression.
 
     Models conditional logits in a fixed product order using rank-R user-item
@@ -777,8 +808,7 @@ class LowRankBilinearAR(nn.Module):
             **config,
             "benchmark_baseline": f"low_rank_bilinear_ar_rank{rank}",
         }
-        self.C, self.P = int(config["C"]), int(config["P"])
-        self.J = self.C * self.P
+        self._setup_layout(config)
         self.rank = rank
         self.parent = parent
         if self.parent is not None:
@@ -814,14 +844,14 @@ class LowRankBilinearAR(nn.Module):
 
     def _base_u(self, ctx: dict) -> torch.Tensor:
         B = len(ctx["house"])
-        d = ctx["dlp"].reshape(B, self.J)
+        d = self._flat(ctx["dlp"])
         if self.parent is not None:
             with torch.no_grad():
                 base = (self.parent.lam + self.parent.house[ctx["house"]]).reshape(
                     B, self.J
                 )
             return base - self.base_price * d
-        base = ctx["baseline"].reshape(B, self.J) if "baseline" in ctx else 0.0
+        base = self._flat(ctx["baseline"]) if "baseline" in ctx else 0.0
         if not self.price.requires_grad and not self.user_theta.requires_grad:
             return base - self.base_price * d
         return base + self.user_theta[ctx["house"]] @ self.item_alpha.T - self.price * d
@@ -829,7 +859,7 @@ class LowRankBilinearAR(nn.Module):
     def unary(self, ctx: dict) -> torch.Tensor:
         return self._base_u(ctx) + self.lam
 
-    def log_probability(self, ctx: dict, y: torch.Tensor) -> torch.Tensor:
+    def _log_probability(self, ctx: dict, y: torch.Tensor) -> torch.Tensor:
         grad_in = any(
             isinstance(v, torch.Tensor) and v.requires_grad for v in ctx.values()
         )
@@ -842,7 +872,7 @@ class LowRankBilinearAR(nn.Module):
             if cache_key not in self._split_cache:
                 with torch.no_grad():
                     u0 = self._base_u(ctx)
-                    y_flat = y.reshape(-1, self.J).double()
+                    y_flat = self._flat(y, finite=False).double()
                     counts_before = y_flat.cumsum(-1) - y_flat
                     self._split_cache[cache_key] = (u0, y_flat, counts_before)
             u0, y_flat, counts_before = self._split_cache[cache_key]
@@ -853,7 +883,7 @@ class LowRankBilinearAR(nn.Module):
                 y_flat * F.logsigmoid(eta) + (1.0 - y_flat) * F.logsigmoid(-eta)
             ).sum(-1) - _nonempty_ar_normalizer(u)
 
-        y_flat = y.reshape(-1, self.J).double()
+        y_flat = self._flat(y, finite=False).double()
         u = self.unary(ctx)
         W = torch.tril(self.item_alpha @ self.item_rho.T, -1)
         counts_before = y_flat.cumsum(-1) - y_flat
@@ -864,7 +894,8 @@ class LowRankBilinearAR(nn.Module):
 
     @torch.no_grad()
     def exact_mass(self, ctx: dict, sets: torch.Tensor) -> torch.Tensor:
-        y_sets = sets.reshape(-1, self.J).double()
+        safe_sets, valid = self.layout.safe_baskets(sets)
+        y_sets = self._flat(safe_sets, finite=False).double()
         u_all = self.unary(ctx)
         norm_all = _nonempty_ar_normalizer(u_all)
         W = torch.tril(self.item_alpha @ self.item_rho.T, -1)
@@ -879,7 +910,7 @@ class LowRankBilinearAR(nn.Module):
                 + (1.0 - y_sets[None, :, :]) * F.logsigmoid(-eta)
             ).sum(-1) - norm_all[s:e, None]
             out[s:e] = ll.exp()
-        return out
+        return out.masked_fill(~valid[None, :], 0.0)
 
     @torch.no_grad()
     def sample(self, ctx: dict, seed: int = 0) -> torch.Tensor:
@@ -909,10 +940,10 @@ class LowRankBilinearAR(nn.Module):
             y[:, j] = take.to(u.dtype)
             count += take.to(u.dtype)
             active |= take
-        return y.reshape(B, self.C, self.P)
+        return self._format_sample(y, ctx)
 
 
-class GaussianFactorMixture(nn.Module):
+class GaussianFactorMixture(_BasketModel):
     """Baseline 9: Finite Gaussian-Node Factor Mixture over Nonempty Baskets.
 
     Mixes M=12 fixed Gaussian latent trip factor states z_m in R^K with
@@ -936,8 +967,7 @@ class GaussianFactorMixture(nn.Module):
             **config,
             "benchmark_baseline": f"gaussian_factor_mixture_K{n_factors}_M{n_nodes}",
         }
-        self.C, self.P = int(config["C"]), int(config["P"])
-        self.J = self.C * self.P
+        self._setup_layout(config)
         self.n_factors = n_factors
         self.n_nodes = n_nodes
         self.parent = parent
@@ -973,12 +1003,12 @@ class GaussianFactorMixture(nn.Module):
 
     def _base_u(self, ctx: dict):
         B = len(ctx["house"])
-        d = ctx["dlp"].reshape(B, self.J)
+        d = self._flat(ctx["dlp"])
         if self.parent is not None:
             with torch.no_grad():
                 u0 = self.parent.utilities(ctx).reshape(B, self.J)
             return u0 + self.lam
-        base = ctx["baseline"].reshape(B, self.J) if "baseline" in ctx else 0.0
+        base = self._flat(ctx["baseline"]) if "baseline" in ctx else 0.0
         return base + self.lam - self.price * d
 
     def _base_and_shifts(self, ctx: dict):
@@ -993,7 +1023,7 @@ class GaussianFactorMixture(nn.Module):
         u_base, shifts, log_w = self._base_and_shifts(ctx)
         return u_base[:, None, :] + shifts[None, :, :], log_w
 
-    def log_probability(self, ctx: dict, y: torch.Tensor) -> torch.Tensor:
+    def _log_probability(self, ctx: dict, y: torch.Tensor) -> torch.Tensor:
         grad_in = any(
             isinstance(v, torch.Tensor) and v.requires_grad for v in ctx.values()
         )
@@ -1005,7 +1035,7 @@ class GaussianFactorMixture(nn.Module):
         ):
             if cache_key not in self._split_cache:
                 with torch.no_grad():
-                    y_flat = y.reshape(-1, self.J).double()
+                    y_flat = self._flat(y, finite=False).double()
                     u_base = self._base_u(ctx)
                     shifts = self.z_nodes @ self.V.T
                     u_m = u_base[:, None, :] + shifts[None, :, :]
@@ -1023,7 +1053,7 @@ class GaussianFactorMixture(nn.Module):
             )
             return torch.logsumexp(comp_base + log_w, dim=-1)
 
-        y_flat = y.reshape(-1, self.J).double()
+        y_flat = self._flat(y, finite=False).double()
         u_base, shifts, log_w = self._base_and_shifts(ctx)
         u_m = u_base[:, None, :] + shifts[None, :, :]
         log_all = F.softplus(u_m).sum(-1)
@@ -1036,7 +1066,8 @@ class GaussianFactorMixture(nn.Module):
 
     @torch.no_grad()
     def exact_mass(self, ctx: dict, sets: torch.Tensor) -> torch.Tensor:
-        y_sets = sets.reshape(-1, self.J).double()
+        safe_sets, valid = self.layout.safe_baskets(sets)
+        y_sets = self._flat(safe_sets, finite=False).double()
         u_m, log_w = self.node_utilities(ctx)
         log_all = F.softplus(u_m).sum(-1)
         log_Z = log_all + torch.log((-torch.expm1(-log_all)).clamp(min=1e-30))
@@ -1046,7 +1077,7 @@ class GaussianFactorMixture(nn.Module):
             dot = u_m[s:e] @ y_sets.T
             comp = dot - log_Z[s:e, :, None] + log_w[s:e, :, None]
             out[s:e] = torch.logsumexp(comp, dim=1).exp()
-        return out
+        return out.masked_fill(~valid[None, :], 0.0)
 
     @torch.no_grad()
     def sample(self, ctx: dict, seed: int = 0) -> torch.Tensor:
@@ -1055,7 +1086,7 @@ class GaussianFactorMixture(nn.Module):
         B = len(ctx["house"])
         chosen_m = torch.multinomial(log_w.exp(), 1, generator=gen).ravel()
         u_sel = u_m[torch.arange(B, device=u_m.device), chosen_m]
-        return _sample_nonempty_bernoulli(u_sel, gen).reshape(B, self.C, self.P)
+        return self._format_sample(_sample_nonempty_bernoulli(u_sel, gen), ctx)
 
 
 # Backward-compatible aliases
@@ -1063,7 +1094,7 @@ ShopperFactorAR = LowRankBilinearAR
 LogisticNormalFactorMixture = GaussianFactorMixture
 
 
-class FastNeuralNADE(nn.Module):
+class FastNeuralNADE(_BasketModel):
     """Baseline 10: Conditional Neural Autoregressive Distribution Estimator (NADE, hidden width 16, rank-8 cross-price)."""
 
     def __init__(
@@ -1078,8 +1109,7 @@ class FastNeuralNADE(nn.Module):
             **config,
             "benchmark_baseline": f"conditional_NADE_H{hidden}_crossprice_rank8",
         }
-        self.C, self.P = int(config["C"]), int(config["P"])
-        self.J = self.C * self.P
+        self._setup_layout(config)
         init_p = (
             price.detach().clone()
             if price is not None
@@ -1106,8 +1136,8 @@ class FastNeuralNADE(nn.Module):
 
     def _unary_and_dQ(self, ctx: dict) -> tuple[torch.Tensor, torch.Tensor]:
         B = len(ctx["house"])
-        base = ctx["baseline"].reshape(B, self.J) if "baseline" in ctx else 0.0
-        d = ctx["dlp"].reshape(B, self.J)
+        base = self._flat(ctx["baseline"]) if "baseline" in ctx else 0.0
+        d = self._flat(ctx["dlp"])
         u = (
             base
             + self.lam
@@ -1124,8 +1154,8 @@ class FastNeuralNADE(nn.Module):
         prefix = contrib.cumsum(1) - contrib
         return u + (torch.sigmoid(prefix + d_Q[:, None]) * self.O).sum(-1)
 
-    def log_probability(self, ctx: dict, y: torch.Tensor) -> torch.Tensor:
-        y_flat = y.reshape(-1, self.J).double()
+    def _log_probability(self, ctx: dict, y: torch.Tensor) -> torch.Tensor:
+        y_flat = self._flat(y, finite=False).double()
         u, d_Q = self._unary_and_dQ(ctx)
         contrib = y_flat[..., None] * self.E
         prefix = contrib.cumsum(1) - contrib
@@ -1138,8 +1168,8 @@ class FastNeuralNADE(nn.Module):
     @torch.no_grad()
     def sample(self, ctx: dict, seed: int = 0) -> torch.Tensor:
         batch = len(ctx["house"])
-        base = ctx["baseline"].reshape(batch, self.J) if "baseline" in ctx else 0.0
-        d = ctx["dlp"].reshape(batch, self.J)
+        base = self._flat(ctx["baseline"]) if "baseline" in ctx else 0.0
+        d = self._flat(ctx["dlp"])
         unary = (
             base
             + self.lam
@@ -1179,4 +1209,4 @@ class FastNeuralNADE(nn.Module):
             output[:, j] = take.to(unary.dtype)
             prefix += take[:, None].to(unary.dtype) * self.E[j]
             active |= take
-        return output.reshape(batch, self.C, self.P)
+        return self._format_sample(output, ctx)

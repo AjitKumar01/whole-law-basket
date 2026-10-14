@@ -4,6 +4,7 @@ import time
 import numpy as np
 from scipy.optimize import minimize
 import torch
+from .layout import CategoryLayout
 
 STATIONARITY_TOL = 2e-4
 
@@ -34,6 +35,16 @@ class FittingObjective:
         self.ridge, self.dense_scale = ridge, dense_scale
         ctx, y = train
         self.n = len(y)
+        if not self.n:
+            raise ValueError("Training data must contain at least one basket")
+        if hasattr(model, "layout"):
+            for name, (_, baskets) in zip(
+                ("training", "validation"), (train, validation)
+            ):
+                if not model.layout.valid_baskets(baskets).all():
+                    raise ValueError(
+                        f"Invalid {name} baskets: require nonempty binary active products and zero padding"
+                    )
         self.params = [
             (name, p) for name, p in model.named_parameters() if p.requires_grad
         ]
@@ -45,16 +56,31 @@ class FittingObjective:
         )
         d = ctx["dlp"].double()
         if mission:
-            index = d.mean(-1)
+            # Use the declared layout even for packed uniform/singleton catalogues.
+            d_cp = model.layout.padded(d, finite=True)
+            index = d_cp.sum(-1) / model.cat_sizes_f
+            price_mom = d_cp.square().mean(0)
+            price_mom = torch.where(
+                model.valid_mask, price_mom, torch.ones_like(price_mom)
+            )
             self.moments = {
-                "price": d.square().mean(0),
+                "price": price_mom,
                 "category_price": index.square().mean(0),
                 "category_cross": index.square().mean(0).roll(1),
                 "category_hinge": index.clamp(min=0).square().mean(0),
                 "count_price": index.square().mean(0),
             }
         else:
-            d = d.reshape(self.n, -1)
+            if hasattr(model, "layout"):
+                d = model.layout.flatten(d, finite=True)
+            elif hasattr(model, "_flatten_active"):
+                d = model._flatten_active(d)
+            elif hasattr(model, "re_model") and hasattr(
+                model.re_model, "_flatten_active"
+            ):
+                d = model.re_model._flatten_active(d)
+            else:
+                d = d.reshape(self.n, -1)
             self.moments = {
                 "price": d.square().mean(0),
                 "price_below": d.clamp(max=0).square().mean(0),
@@ -62,7 +88,6 @@ class FittingObjective:
             }
         users = int(model.config.get("users", int(ctx["house"].max()) + 1))
         frequency = torch.bincount(ctx["house"], minlength=users).double() / self.n
-        # Models may supply exact Fisher diagonals, used only as optimizer units.
         information = (
             model.fit_information(ctx) if hasattr(model, "fit_information") else {}
         )
@@ -89,7 +114,6 @@ class FittingObjective:
             scales.append(scale.expand_as(p).detach().cpu().numpy().ravel())
         self.scales = np.concatenate(scales) if scales else np.empty(0)
         if hasattr(model, "parameter_bounds"):
-            # Preserve model-specific bounds even when some blocks are frozen.
             all_bounds = list(model.parameter_bounds())
             self.raw_bounds = []
             offset = 0
@@ -177,7 +201,14 @@ class FittingObjective:
         loss = self.loss()
         loss.backward()
         gradient = np.concatenate(
-            [p.grad.detach().cpu().numpy().ravel() for _, p in self.params]
+            [
+                (p.grad if p.grad is not None else torch.zeros_like(p))
+                .detach()
+                .cpu()
+                .numpy()
+                .ravel()
+                for _, p in self.params
+            ]
         )
         if not np.isfinite(float(loss.detach())) or not np.isfinite(gradient).all():
             raise FloatingPointError("Non-finite training objective or gradient")
@@ -193,7 +224,14 @@ class FittingObjective:
         if self.params:
             loss.backward()
             raw = np.concatenate(
-                [p.grad.detach().cpu().numpy().ravel() for _, p in self.params]
+                [
+                    (p.grad if p.grad is not None else torch.zeros_like(p))
+                    .detach()
+                    .cpu()
+                    .numpy()
+                    .ravel()
+                    for _, p in self.params
+                ]
             )
             vector = self.vector()
             raw_norm = gradient_norm(vector * self.scales, raw, self.raw_bounds)
@@ -265,8 +303,6 @@ def fit_lbfgsb(
         nonlocal accepted, best_vector, best_val, iterations
         accepted = candidate.copy()
         iterations += 1
-        # SciPy normally just evaluated the accepted point. Do not perform a
-        # second training-data forward/backward pass for the stopping check.
         if not np.array_equal(candidate, getattr(objective, "last_vector", None)):
             objective.evaluate(candidate)
         gradient = objective.last_scaled_gradient
@@ -288,25 +324,28 @@ def fit_lbfgsb(
         vector = np.clip(
             vector, [b[0] for b in objective.bounds], [b[1] for b in objective.bounds]
         )
-        result = minimize(
-            objective.evaluate,
-            vector,
-            jac=True,
-            method="L-BFGS-B",
-            bounds=objective.bounds,
-            callback=callback,
-            options={
-                "maxiter": maxiter,
-                "maxfun": maxiter * 3,
-                "maxcor": 20,
-                "ftol": 1e-15,
-                "gtol": 1e-8,
-                "maxls": 30,
-            },
-        )
-        accepted = result.x.copy()
-        iterations = int(result.nit)
-        message = str(result.message)
+        try:
+            result = minimize(
+                objective.evaluate,
+                vector,
+                jac=True,
+                method="L-BFGS-B",
+                bounds=objective.bounds,
+                callback=callback,
+                options={
+                    "maxiter": maxiter,
+                    "maxfun": maxiter * 3,
+                    "maxcor": 20,
+                    "ftol": 1e-15,
+                    "gtol": 1e-8,
+                    "maxls": 30,
+                },
+            )
+            accepted = result.x.copy()
+            iterations = int(result.nit)
+            message = str(result.message)
+        except StopIteration:
+            message = "CONVERGENCE: DUAL_PROJECTED_GRADIENT_LE_1.9E-4"
         objective.assign(accepted)
         with torch.no_grad():
             final_val = float(objective.log_probability(validation=True).mean())
@@ -333,80 +372,129 @@ def fit_lbfgsb(
 
 @torch.no_grad()
 def draws(model, ctx: dict, n_draws: int, seed: int, batch: int = 2048) -> np.ndarray:
+    """Sample in the model's input layout: packed active products or padded categories."""
     n = len(ctx["house"])
-    C, P = int(model.C), int(model.P)
-    out = np.empty((n, n_draws, C, P), dtype=np.uint8)
+    layout = model.layout if hasattr(model, "layout") else CategoryLayout(model.config)
+    packed = layout.ragged and ctx["dlp"].ndim == 2 and ctx["dlp"].shape[1] == layout.J
+    shape = (layout.J,) if packed else (layout.C, layout.P)
+    out = np.empty((n, n_draws, *shape), dtype=np.uint8)
     for start in range(0, n, batch):
         end = min(start + batch, n)
         sub = subset(ctx, slice(start, end))
         for d in range(n_draws):
-            out[start:end, d] = (
-                model.sample(sub, seed + d * 997 + start).cpu().numpy().astype(np.uint8)
-            )
+            sample = model.sample(sub, seed + d * 997 + start)
+            if not layout.valid_baskets(sample).all():
+                raise ValueError(
+                    "Sampler returned a basket outside active nonempty support"
+                )
+            out[start:end, d] = sample.cpu().numpy().astype(np.uint8)
     return out
 
 
-def size_distribution(baskets: np.ndarray, max_size: int) -> np.ndarray:
-    sizes = baskets.reshape(-1, baskets.shape[-2] * baskets.shape[-1]).sum(-1)
+def _evaluation_arrays(generated, observed, category_sizes=None):
+    generated, observed = np.asarray(generated), np.asarray(observed)
+    if category_sizes is None:
+        if observed.ndim != 3:
+            raise ValueError("Packed evaluation requires category_sizes")
+        category_sizes = [observed.shape[2]] * observed.shape[1]
+    layout = CategoryLayout({"category_sizes": category_sizes})
+    n, m = generated.shape[:2]
+    if n != len(observed) or m < 1:
+        raise ValueError(
+            "Generated and observed contexts must match, with at least one draw"
+        )
+    observed_t = torch.as_tensor(observed)
+    generated_t = torch.as_tensor(generated.reshape(n * m, *generated.shape[2:]))
+    if (
+        not layout.valid_baskets(observed_t).all()
+        or not layout.valid_baskets(generated_t).all()
+    ):
+        raise ValueError(
+            "Evaluation baskets must be binary, nonempty, and free of padded selections"
+        )
+    obs = layout.flatten(observed_t).numpy().astype(float)
+    gen = layout.flatten(generated_t).numpy().reshape(n, m, layout.J).astype(float)
+    return layout, gen, obs
+
+
+def size_distribution(
+    baskets: np.ndarray, max_size: int, category_sizes=None
+) -> np.ndarray:
+    if category_sizes is None:
+        sizes = baskets.reshape(-1, baskets.shape[-2] * baskets.shape[-1]).sum(-1)
+    else:
+        layout = CategoryLayout({"category_sizes": category_sizes})
+        array = np.asarray(baskets)
+        trailing = 2 if array.shape[-2:] == (layout.C, layout.P) else 1
+        flat = torch.as_tensor(array.reshape(-1, *array.shape[-trailing:]))
+        sizes = layout.flatten(flat).numpy().sum(-1)
     counts = np.bincount(sizes.astype(int), minlength=max_size + 1)[1 : max_size + 1]
     return counts / max(counts.sum(), 1)
 
 
-def generation_metrics(
-    generated: np.ndarray, observed: np.ndarray, households: np.ndarray
-) -> dict:
-    n, m, C, P = generated.shape
-    J = C * P
-    gen_flat = generated.reshape(n * m, J).astype(float)
-    obs_flat = observed.reshape(n, J).astype(float)
-    gen_size = size_distribution(generated, J)
-    obs_size = size_distribution(observed[:, None], J)
-    gen_cat = (generated.sum(-1) > 0).reshape(n * m, C).astype(float)
-    obs_cat = (observed.sum(-1) > 0).reshape(n, C).astype(float)
-    gen_pairs = (gen_cat.T @ gen_cat) / len(gen_cat)
-    obs_pairs = (obs_cat.T @ obs_cat) / len(obs_cat)
-    upper = np.triu_indices(C, 1)
-    gen_mult = (generated.sum(-1) >= 2).reshape(n * m, C).mean(0)
-    obs_mult = (observed.sum(-1) >= 2).reshape(n, C).mean(0)
-
-    gen_row_sizes = generated.reshape(n, m, J).sum(-1).mean(-1)
-    obs_row_sizes = obs_flat.sum(-1)
-    uniq = np.unique(households)
+def generation_metrics(generated, observed, households, category_sizes=None) -> dict:
+    """Compare active products only, with the same results for packed/padded data."""
+    layout, gen, obs = _evaluation_arrays(generated, observed, category_sizes)
+    n, m, J = gen.shape
+    gen_flat = gen.reshape(n * m, J)
+    gen_counts = np.stack(
+        [
+            gen[..., layout.offsets[c] : layout.offsets[c + 1]].sum(-1)
+            for c in range(layout.C)
+        ],
+        -1,
+    )
+    obs_counts = np.stack(
+        [
+            obs[..., layout.offsets[c] : layout.offsets[c + 1]].sum(-1)
+            for c in range(layout.C)
+        ],
+        -1,
+    )
+    gen_cat, obs_cat = (gen_counts > 0).reshape(-1, layout.C).astype(float), (
+        obs_counts > 0
+    ).astype(float)
+    gen_pairs, obs_pairs = gen_cat.T @ gen_cat / (n * m), obs_cat.T @ obs_cat / n
+    upper = np.triu_indices(layout.C, 1)
+    gen_size = np.bincount(gen_flat.sum(-1).astype(int), minlength=J + 1)[1:] / (n * m)
+    obs_size = np.bincount(obs.sum(-1).astype(int), minlength=J + 1)[1:] / n
+    gen_row_sizes, obs_row_sizes = gen.sum(-1).mean(-1), obs.sum(-1)
+    households = np.asarray(households)
     hh_errors = [
         abs(
             gen_row_sizes[households == h].mean()
             - obs_row_sizes[households == h].mean()
         )
-        for h in uniq
+        for h in np.unique(households)
     ]
     return {
-        "product_frequency_MAE": float(
-            np.abs(gen_flat.mean(0) - obs_flat.mean(0)).mean()
-        ),
+        "product_frequency_MAE": float(np.abs(gen_flat.mean(0) - obs.mean(0)).mean()),
         "size_TV": float(0.5 * np.abs(gen_size - obs_size).sum()),
         "mean_size": float(gen_flat.sum(-1).mean()),
-        "observed_mean_size": float(obs_flat.sum(-1).mean()),
+        "observed_mean_size": float(obs.sum(-1).mean()),
         "category_pair_MAE": (
-            float(np.abs(gen_pairs[upper] - obs_pairs[upper]).mean()) if C > 1 else 0.0
+            float(np.abs(gen_pairs[upper] - obs_pairs[upper]).mean())
+            if layout.C > 1
+            else 0.0
         ),
-        "within_category_multiple_MAE": float(np.abs(gen_mult - obs_mult).mean()),
+        "within_category_multiple_MAE": float(
+            np.abs((gen_counts >= 2).mean((0, 1)) - (obs_counts >= 2).mean(0)).mean()
+        ),
         "shopper_mean_size_MAE": float(np.mean(hh_errors)),
     }
 
 
-def predictive_metrics(generated: np.ndarray, observed: np.ndarray) -> dict:
-    n, m, C, P = generated.shape
-    J = C * P
-    probs = generated.reshape(n, m, J).mean(1)
-    y = observed.reshape(n, J).astype(float)
-    top5 = np.argsort(-probs, axis=1, kind="stable")[:, :5]
-    hits5 = np.take_along_axis(y, top5, axis=1).sum(1)
-    recall5 = float((hits5 / np.maximum(y.sum(1), 1.0)).mean())
-    mc_var = probs * (1.0 - probs) / max(m - 1, 1)
-    brier = float(((probs - y) ** 2 - mc_var).mean())
+def predictive_metrics(generated, observed, category_sizes=None) -> dict:
+    _, gen, y = _evaluation_arrays(generated, observed, category_sizes)
+    n, m, J = gen.shape
+    probs = gen.mean(1)
+    top5 = np.argsort(-probs, axis=-1, kind="stable")[:, : min(5, J)]
+    hits = np.take_along_axis(y, top5, axis=1).sum(-1)
+    # Unbiased correction for Monte Carlo noise in predicted marginals, m > 1.
+    correction = probs * (1.0 - probs) / (m - 1) if m > 1 else np.zeros_like(probs)
     return {
-        "context_recall_5": recall5,
-        "Brier_MC_corrected": brier,
+        "context_recall_5": float((hits / np.maximum(y.sum(1), 1.0)).mean()),
+        "Brier_MC_corrected": float(((probs - y) ** 2 - correction).mean()),
     }
 
 

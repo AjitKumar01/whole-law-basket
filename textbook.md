@@ -1,6 +1,6 @@
 # A Complete Textbook on the Whole-Law Basket Choice and Generation Model
 
-This textbook explains the **Whole-Law Basket Model** and every mathematical, statistical, and computational idea behind the [`whole_law_basket`](file:///Users/ajit/Projects/nf_dunnhumby/ebi_chain/whole_law_basket_repo/whole_law_basket) codebase from first principles. Every concept is introduced in plain, everyday language first, illustrated with a concrete example, and then connected to its exact mathematical formula and Python implementation.
+This textbook explains the **Whole-Law Basket Model** and every mathematical, statistical, and computational idea behind the [`whole_law_basket`](whole_law_basket) codebase from first principles. Every concept is introduced in plain, everyday language first, illustrated with a concrete example, and then connected to its exact mathematical formula and Python implementation.
 
 ---
 
@@ -32,9 +32,9 @@ Real supermarket shopping does not work that way. On a single trip to a grocery 
 
 ### 1.2 The Sample Space of Nonempty Binary Baskets ($\mathcal{S}_+$)
 Suppose a retailer tracks $C$ product categories (aisles), each containing $P$ products (or $P_c$ products in category $c$; see Chapter 6), for a total catalogue of $J = \sum_{c=1}^C P_c$ products:
-* In our **synthetic worlds** ([`whole_law_basket/synthetic.py`](file:///Users/ajit/Projects/nf_dunnhumby/ebi_chain/whole_law_basket_repo/whole_law_basket/synthetic.py)), $C = 3$ categories $\times$ $P = 4$ products $= J = 12$ products.
-* In the **ERIM scanner panel** ([`whole_law_basket/real_data.py`](file:///Users/ajit/Projects/nf_dunnhumby/ebi_chain/whole_law_basket_repo/whole_law_basket/real_data.py)), $C = 7$ categories $\times$ $P = 4$ products $= J = 28$ products.
-* In the **Dunnhumby Complete Journey panel** ([`whole_law_basket/real_data.py`](file:///Users/ajit/Projects/nf_dunnhumby/ebi_chain/whole_law_basket_repo/whole_law_basket/real_data.py)), $C = 16$ categories $\times$ $P = 4$ products $= J = 64$ products.
+* In our **synthetic worlds** ([`whole_law_basket/synthetic.py`](whole_law_basket/synthetic.py)), $C = 3$ categories $\times$ $P = 4$ products $= J = 12$ products.
+* In the **ERIM scanner panel** ([`whole_law_basket/real_data.py`](whole_law_basket/real_data.py)), $C = 7$ categories $\times$ $P = 4$ products $= J = 28$ products.
+* In the **Dunnhumby Complete Journey panel** ([`whole_law_basket/real_data.py`](whole_law_basket/real_data.py)), $C = 16$ categories $\times$ $P = 4$ products $= J = 64$ products.
 
 A shopping basket is a binary table $y \in \{0, 1\}^{C \times P}$ (or flattened vector $y \in \{0, 1\}^J$), where $y_{c,p} = 1$ if product $p$ in category $c$ is in the basket and $y_{c,p} = 0$ if it is not.
 
@@ -66,13 +66,13 @@ Historically, researchers used three shortcuts to avoid summing over $2^J - 1$ b
 3. **Shortcut 3: Sequential / Autoregressive Chain Rule ([Uria et al. 2016 (NADE)](https://jmlr.org/papers/v17/16-272.html); `PairwiseBinaryAR`; `LowRankBilinearAR`)**
    Number the products $j = 1, 2, \dots, J$ in some fixed list order and factorize the basket probability step-by-step:
    $$P(y \mid x) \propto P(y_1 \mid x) \cdot P(y_2 \mid y_1, x) \cdot P(y_3 \mid y_1, y_2, x) \cdots P(y_J \mid y_1, \dots, y_{J-1}, x).$$
-   * *Why it fails*: A shopping basket at checkout is an **unordered set**, not a sentence with a beginning and an end. Forcing a fixed product order $1, 2, \dots, J$ means that whether product $5$ is bought changes the probability of product $6$, whereas product $6$ can only affect product $5$ indirectly through the normalizing constant. Worse, in neural autoregressive models (`FastNeuralNADE`), feeding the entire price vector $d$ into the hidden state allows shelf prices to shift global trip propensity in opaque, non-causal ways, leading to poor counterfactual promotion decisions (only `3/6` or `4/6` optimal promotion plans on our synthetic worlds).
+   * *Tradeoff*: The chain rule defines a valid distribution over binary basket vectors, including unordered sets represented in a fixed product order. Restrictions on conditional functions can make that order matter for fit and learning. Feeding all prices to a neural network is flexible, but flexibility alone does not identify causal price effects. The historical neural fits here were unconverged, so their response errors cannot establish an inherent architectural failure.
 
 ### 1.5 What Is the Whole-Law Basket Model?
-The **Whole-Law Basket Model** ([`whole_law_basket/proposed_model.py`](file:///Users/ajit/Projects/nf_dunnhumby/ebi_chain/whole_law_basket_repo/whole_law_basket/proposed_model.py)) is a **simultaneous, order-invariant, exactly normalized probability distribution over all $2^J - 1$ nonempty baskets**.
+The **Whole-Law Basket Model** ([`whole_law_basket/proposed_model.py`](whole_law_basket/proposed_model.py)) is a **simultaneous probability distribution, normalized by construction, over all $2^J - 1$ nonempty baskets**.
 * **"Simultaneous & Order-Invariant"**: It never steps through products in an arbitrary sequence $j = 1 \dots J$. Renumbering products within a category or renumbering categories leaves the model family completely unchanged.
 * **"Whole-Law"**: Instead of modeling only single-category choice or only pairwise conditionals, it models the **entire joint law of the basket**—pre-trip mission, which categories are visited ($x_c$), how many items are bought in each category ($n_c$) and in the whole basket ($N$), and which unordered subset of items ($y_c$) is chosen within each category.
-* **"Exactly Normalized & Rejection-Free"**: Through three mathematical tools—**Elementary Symmetric Polynomials (`log_esp`)**, **Category-Frontier Dynamic Programming**, and **Exact-Mode $\sinh$ Log-Time Quadrature for Exponential-Race Plackett–Luce**—it computes the exact partition function over all $2^J - 1$ baskets and draws exact synthetic baskets in milliseconds without MCMC or rejection sampling.
+* **"Exactly Normalized & Rejection-Free"**: Through three mathematical tools—**Elementary Symmetric Polynomials (`log_esp`)**, **Category-Frontier Dynamic Programming**, and **Exact-Mode $\sinh$ Log-Time Quadrature for Exponential-Race Plackett–Luce**—the ESP and frontier-DP operations compute finite sums without enumerating all baskets. The race likelihood uses numerical quadrature when the exact subset recursion is too large; its accuracy must be checked in the regime used. Sampling follows the specified law without MCMC or rejection sampling. Runtime depends on catalogue size and graph complexity.
 
 ---
 
@@ -100,7 +100,7 @@ For every trip, the context dictionary `ctx` provides:
 * `disp` ($D_{c,p} \in [0, 1]$) and `mail` ($M_{c,p} \in [0, 1]$): In-store promotional display and feature mailer indicators.
 
 ### 2.3 Price-Free Baseline Utility $b_{c,p}(z)$ and Net Product Utility $u_{c,p}(z)$
-In [`whole_law_basket/real_data.py`](file:///Users/ajit/Projects/nf_dunnhumby/ebi_chain/whole_law_basket_repo/whole_law_basket/real_data.py) (`TrainableBasketModel.baseline`), the price-free observable controls are combined into a baseline utility $b_{c,p}(z)$:
+In [`whole_law_basket/real_data.py`](whole_law_basket/real_data.py) (`ParentControls.baseline`), the price-free observable controls are combined into a baseline utility $b_{c,p}(z)$:
 
 $$b_{c,p}(z) = \lambda_{c,p}^{\text{base}} + \theta_h^\top \alpha_{c,p} + \xi_s^\top \zeta_{c,p} + f(t)^\top \mu_{c,p} + w_{c,p}^D D_{c,p} + w_{c,p}^M M_{c,p},$$
 
@@ -147,7 +147,7 @@ Listing all $\binom{P}{k}$ subsets takes $O(2^P)$ time, which explodes when $P$ 
 * **does not include item $j$** (so all $k$ items came from the first $j-1$ items: $E_k^{(j-1)}$), or
 * **does include item $j$** (so the other $k-1$ items came from the first $j-1$ items: $v_j \cdot E_{k-1}^{(j-1)}$).
 
-In log-space ($\ell_k^{(j)} = \log E_k^{(j)}$), this recurrence is a single `torch.logaddexp` call in `log_esp` ([`whole_law_basket/proposed_model.py`](file:///Users/ajit/Projects/nf_dunnhumby/ebi_chain/whole_law_basket_repo/whole_law_basket/proposed_model.py)):
+In log-space ($\ell_k^{(j)} = \log E_k^{(j)}$), this recurrence is a single `torch.logaddexp` call in `log_esp` ([`whole_law_basket/proposed_model.py`](whole_law_basket/proposed_model.py)):
 
 $$\ell_k^{(j)} = \operatorname{logaddexp}\!\Big(\ell_k^{(j-1)}, \; \ell_{k-1}^{(j-1)} + u_j\Big), \qquad k = 1, \dots, j.$$
 
@@ -162,7 +162,7 @@ Once we know the suffix ESP table $\ell_r^{(\text{suffix } j)}$ (the log-sum ove
 
 ---
 
-### 3.2 Mechanism 2: Exponential-Race Plackett–Luce Choice ([`whole_law_basket/race_pl.py`](file:///Users/ajit/Projects/nf_dunnhumby/ebi_chain/whole_law_basket_repo/whole_law_basket/race_pl.py))
+### 3.2 Mechanism 2: Exponential-Race Plackett–Luce Choice ([`whole_law_basket/race_pl.py`](whole_law_basket/race_pl.py))
 While ESP models weight a subset by $\prod_{p \in A} e^{u_p}$, random-utility theory ([Luce 1959](https://www.statisticshowto.com/plackett-luce-model/); [McFadden 1974](https://escholarship.org/uc/item/61s3q2xr); [Plackett 1975](https://academic.oup.com/jrsssc/article/24/2/193/6953554)) models a shopper who has Gumbel-distributed random utilities $U_{c,p} = u_{c,p} + \varepsilon_{c,p}$ ($\varepsilon_{c,p} \stackrel{\text{i.i.d.}}{\sim} \operatorname{Gumbel}(0, 1)$) and picks their **top $k$ most-preferred items** in category $c$:
 
 $$A = \operatorname{arg\,top}_k \{U_{c,1}, \dots, U_{c,P}\}.$$
@@ -197,7 +197,7 @@ Suppose $P = 8$ products and $k = 7$ items are bought, with utilities $u = (5, 5
 * If you guess the peak of the integral using the **average rate** $\bar{r} = \frac{1}{7}\sum_{i \in A} r_i \approx 127.2$, you place your quadrature grid around $s_0 = \frac{1}{\bar{r}}\log(1 + 7\bar{r}) \approx 0.053$.
 * **What goes wrong?** At $s = 0.053$, the slow item's factor $(1 - e^{-0.00674 s})$ is virtually zero! The actual peak of the integrand is pushed out to $s^* \approx 0.997$ (nearly $20\times$ larger than $s_0$). A quadrature grid centered at $s_0 = 0.053$ misses the peak completely, losing **18.95% of the total probability mass** ($\sum_{|A|=7} P(A) = 0.81049$ instead of $1.0$).
 
-#### Our Solution in [`whole_law_basket/race_pl.py`](file:///Users/ajit/Projects/nf_dunnhumby/ebi_chain/whole_law_basket_repo/whole_law_basket/race_pl.py)
+#### Our Solution in [`whole_law_basket/race_pl.py`](whole_law_basket/race_pl.py)
 We change variables to **log-time** $v = \log s \in (-\infty, \infty)$ ($s = e^v, ds = e^v dv$). In log-time, the log-integrand is:
 
 $$\Phi(v) = v - e^v + \sum_{i \in A} \log\!\big(1 - e^{-r_i e^v}\big).$$
@@ -208,42 +208,42 @@ $$\Phi'(v) = 1 - e^v + \sum_{i \in A} \psi(r_i e^v), \qquad \Phi''(v) = -e^v + \
 
 Because $\psi(x)(1 - x - \psi(x)) < 0$ for all $x > 0$ and $-e^v < 0$, **$\Phi''(v)$ is strictly negative everywhere on $(-\infty, \infty)$**! That means:
 1. $\Phi(v)$ has a **single, unique bell-shaped peak $v^*$** for *any* utilities $u_c$ and *any* subset size $k$.
-2. In `_find_log_s_mode` ([`race_pl.py`](file:///Users/ajit/Projects/nf_dunnhumby/ebi_chain/whole_law_basket_repo/whole_law_basket/race_pl.py)), 14 damped Newton steps (`v = v - Phi'(v)/Phi''(v)`) find the exact peak $v^*$ to machine precision ($|\Phi'(v^*)| < 10^{-14}$) and compute the exact local width $\sigma_v = (-\Phi''(v^*))^{-1/2}$.
+2. In `_newton_log_mode_and_scale` ([`race_pl.py`](whole_law_basket/race_pl.py)), 14 damped Newton steps (`v = v - Phi'(v)/Phi''(v)`) estimate the peak $v^*$ and compute a local width $\sigma_v = (-\Phi''(v^*))^{-1/2}$.
 3. Inspired by exponential/hyperbolic-sine quadrature ([Takahasi & Mori 1974](https://ems.press/journals/prims/articles/2686)), we map $M = 128$ Gauss–Legendre nodes $\xi_q \in (-1, 1)$ directly around the true peak $v^*$:
    $$v_q = v^* + \alpha \sigma_v \sinh(\beta \xi_q), \qquad \frac{dv}{d\xi}(\xi_q) = \alpha \beta \sigma_v \cosh(\beta \xi_q), \qquad (\alpha = 2.6, \; \beta = 3.4).$$
-4. Because $v^*$ and $\sigma_v$ are computed inside `torch.no_grad()`, they act as a fixed coordinate chart while PyTorch `autograd` differentiates cleanly through the integrand evaluation at $v_q$. On the extreme $P=8, k=7$ stress test above, all $\binom{8}{7}=8$ subset probabilities now sum to $1.0$ within **$4.14 \times 10^{-11}$**, and on $P = 1024, k = 512$ the error is **$0.0$** in IEEE-754 float64 ([`results/quadrature_verification.json`](file:///Users/ajit/Projects/nf_dunnhumby/ebi_chain/whole_law_basket_repo/results/quadrature_verification.json)).
+4. Because $v^*$ and $\sigma_v$ are computed inside `torch.no_grad()`, they act as a fixed coordinate chart while PyTorch `autograd` differentiates cleanly through the integrand evaluation at $v_q$. On the extreme $P=8, k=7$ stress test above, all $\binom{8}{7}=8$ subset probabilities now sum to $1.0$ within **$4.14 \times 10^{-11}$**, and an equal-utility $P = 1024, k = 512$ case has reported error **$0.0$** in IEEE-754 float64 in the saved diagnostic. These finite checks are not an error bound for every utility vector.
 
 ---
 
 ## Chapter 4: Architecture I — `CalibratedMissionLaw` for Price & Promotion Counterfactuals
 
-When a retailer asks: *"If we discount Product 2 in Category 1 by 15%, how much will sales of Product 2 rise, how much will sales of other products in Category 1 fall (cannibalization), and how much will sales in Category 2 change?"*, we need a structural model that separates pre-trip missions from category visit decisions and within-category brand choice. That is `CalibratedMissionLaw` in [`whole_law_basket/proposed_model.py`](file:///Users/ajit/Projects/nf_dunnhumby/ebi_chain/whole_law_basket_repo/whole_law_basket/proposed_model.py).
+When a retailer asks: *"If we discount Product 2 in Category 1 by 15%, how much will sales of Product 2 rise, how much will sales of other products in Category 1 fall (cannibalization), and how much will sales in Category 2 change?"*, we need a structural model that separates pre-trip missions from category visit decisions and within-category brand choice. That is `CalibratedMissionLaw` in [`whole_law_basket/proposed_model.py`](whole_law_basket/proposed_model.py).
 
 ### 4.1 The Three Simultaneous Layers of `CalibratedMissionLaw`
 For each trip $n$ by household $h$:
 
 1. **Layer 1: Pre-Trip Mission Mixture ($m \in \{0, 1\}$)**
-   Each household $h$ has a probability $w_h = \sigma(\text{mission\_logit}_h)$ of being on Mission 0 vs. Mission 1 (for example, a "Focused/Quick Mission" vs. a "Broad Stock-Up Mission"). Notice that $w_h$ depends on the household $h$, **not** on today's shelf prices.
+   A shared probability $w = \sigma(\text{mixture\_logit}[0])$ selects Mission 0 vs. Mission 1 (for example, a "Focused/Quick Mission" vs. a "Broad Stock-Up Mission"). This mixture weight is shared across households and does not depend on today's shelf prices. Household effects enter the conditional category and product utilities.
 
 2. **Layer 2: Category Visit ($x_c \in \{0,1\}$) and Category Item Count ($n_c \in \{1, \dots, P\}$)**
    Let $\bar{d}_{n,c} = \frac{1}{P}\sum_{p=1}^P d_{n,c,p}$ be the average log-price of category $c$ on trip $n$.
    * **Category Incidence Logit ($\eta_{n,m,c}$)**: Under mission $m \in \{0, 1\}$, the propensity to visit category $c$ is:
-     $$\eta_{n,m,c} = \text{need}_c + \text{house\_need}_{h,c} \pm \frac{1}{2}\text{mission\_contrast}_c - \beta_c^{\text{cat}} \bar{d}_{n,c} + \gamma_c^{\text{cross}} \bar{d}_{n,c-1} - \beta_c^{\text{hinge}} \max(\bar{d}_{n,c}, 0) + \tau_c \text{IV}_{n,c}.$$
+     $$\eta_{n,m,c} = \text{need}_c + \text{house\_need}_{h,c} \pm \frac{1}{2}\text{mission\_contrast}_c - \beta_c^{\text{cat}} \bar{d}_{n,c} + \gamma_c^{\text{cross}} \bar{d}_{n,c-1} - \beta_c^{\text{hinge}} \max(\bar{d}_{n,c}, 0).$$
      Here:
-     - $\text{IV}_{n,c} = \log \sum_{p=1}^P \exp(u_{n,c,p})$ is the **inclusive value** (expected maximum utility) of the products inside category $c$, scaled by $\tau_c = \operatorname{softplus}(\text{inclusive\_scale}_c)$.
+     - This class has no inclusive-value term: category participation and product utility are separate conditional stages. The `IndependentCategoriesESP` baseline does use an inclusive value.
      - $\beta_c^{\text{cat}} \bar{d}_{n,c}$ and $\beta_c^{\text{hinge}} \max(\bar{d}_{n,c}, 0)$ capture linear and surcharge-hinge category price sensitivity.
      - $\gamma_c^{\text{cross}} \bar{d}_{n,c-1}$ captures cross-category price complementarity/substitution.
      Conditioned on at least one category being visited ($x \neq \mathbf{0}$), the category visit pattern $x \in \{0,1\}^C \setminus \{\mathbf{0}\}$ has exact log-probability:
      $$\log P(x \mid \eta_{n,m}) = \sum_{c=1}^C \Big(x_c \log\sigma(\eta_{n,m,c}) + (1 - x_c)\log\sigma(-\eta_{n,m,c})\Big) - \log\!\left(1 - \prod_{c=1}^C \sigma(-\eta_{n,m,c})\right).$$
    * **Conditional Category Count ($n_c \in \{1, \dots, P\}$ given $x_c = 1$)**: If category $c$ is visited ($x_c = 1$), how many distinct items $k \in \{1, \dots, P\}$ does the shopper buy in category $c$?
-     Define $\count\_\eta_{n,m,c} = \count\_\text{need}_c - \beta_c^{\text{count}} \bar{d}_{n,c} \pm \frac{1}{2}\count\_\text{contrast}_c$. The log-weights for buying $k = 1, 2, \dots, P$ items in category $c$ are:
-     $$\big(0, \;\; \count\_\eta_{n,m,c}, \;\; 2\,\count\_\eta_{n,m,c} + \delta_{c,1}, \;\; \dots, \;\; (P-1)\,\count\_\eta_{n,m,c} + \delta_{c,P-2}\big),$$
+     Define $\text{count\_eta}_{n,m,c} = \text{count\_need}_c - \beta_c^{\text{count}} \bar{d}_{n,c} \pm \frac{1}{2}\text{count\_contrast}_c$. The log-weights for buying $k = 1, 2, \dots, P$ items in category $c$ are:
+     $$\big(0, \;\; \text{count\_eta}_{n,m,c}, \;\; 2\,\text{count\_eta}_{n,m,c} + \delta_{c,1}, \;\; \dots, \;\; (P-1)\,\text{count\_eta}_{n,m,c} + \delta_{c,P-2}\big),$$
      normalized via `log_softmax` over $k \in \{1, \dots, P\}$.
 
 3. **Layer 3: Within-Category Subset Selection via Exponential-Race PL**
-   Given that $n_c = |y_c|$ items are bought in category $c$, the unordered subset $y_c \in \{0,1\}^P$ has exact log-probability `race_observed_log_probability(u_{n,c}, y_{n,c})` from Chapter 3.
+   Given that $n_c = |y_c|$ items are bought in category $c$, the unordered subset $y_c \in \{0,1\}^P$ has a race-law log-probability evaluated numerically by `race_observed_log_probability(u_{n,c}, y_{n,c})` from Chapter 3.
 
-Finally, a small independent fallback mixture weight $\pi_{\text{ind}} = 0.02 + 0.23\,\sigma(\text{mixture\_logit})$ mixes the mission law with an independent Bernoulli nonempty law to prevent zero-probability outliers.
+Finally, the two mission components are combined as $P(y\mid x)=wP_0(y\mid x)+(1-w)P_1(y\mid x)$ using `logsumexp`. This class has no independent fallback component.
 
 ### 4.2 Why Conditioning on Nonempty Baskets ($x \neq \mathbf{0}$) Couples Categories: The $2 \times 2$ Fisher Information Proof
 Even before adding missions or cross-price terms, conditioning on a nonempty basket ($x \neq \mathbf{0}$) mathematically couples categories together!
@@ -273,19 +273,19 @@ In `CalibratedMissionLaw`, five price parameter blocks interact on every trip:
 
 Notice two critical facts about these blocks:
 * **Collinearity between $\bar{d}_{n,c}$ and $\max(\bar{d}_{n,c}, 0)$**: Because $\max(\bar{d}, 0) = \frac{1}{2}\bar{d} + \frac{1}{2}|\bar{d}|$, the linear term $\bar{d}_{n,c}$ and the hinge term $\max(\bar{d}_{n,c}, 0)$ have a correlation of **$0.8632$**! Furthermore, the conditional variance of $\max(\bar{d}_{n,c}, 0)$ given $\bar{d}_{n,c}$ is $46\times$ smaller than product-level price variance. In unregularized estimation (as on `missions_b`), sampling noise can shift slope from $\beta_c^{\text{cat}}$ onto $\beta_c^{\text{hinge}}$, which distorts how the category responds to price *discounts* ($\bar{d}_{n,c} < 0$, where the hinge is zero).
-* **Why Post-Hoc Adjustment and Category-Index Ordering Are Wrong**:
-  - If you modify $\beta_c^{\text{hinge}}$ *after* training (post-hoc), the other blocks ($\beta_{c,p}^{\text{item}}$ and $\beta_c^{\text{count}}$) have already adapted to the old value during optimization, throwing the joint model out of equilibrium.
+* **Why use joint regularization and avoid category-index ordering?**:
+  - Post-hoc shrinkage can be a valid regularizer when validated, but it changes the response function and need not leave the joint fitting objective stationary. The implementation instead estimates the blocks together.
   - If you shrink price parameters toward a line over category index $c = 0, 1, \dots, C-1$, your model depends on how the categories happen to be numbered in the database! Category numbers are arbitrary labels with no economic ordering.
 
-**Our Solution (`regularization_loss` + `fit_with_validation_selection` in [`proposed_model.py`](file:///Users/ajit/Projects/nf_dunnhumby/ebi_chain/whole_law_basket_repo/whole_law_basket/proposed_model.py))**:
+**Our Solution (`regularization_loss` + `fit_with_validation_selection` in [`proposed_model.py`](whole_law_basket/proposed_model.py))**:
 Inspired by Empirical-Bayes hierarchical pooling ([Efron & Morris 1973](https://www.tandfonline.com/doi/abs/10.1080/01621459.1973.10481350)), we place a **strictly permutation-invariant hierarchical quadratic penalty** directly inside the L-BFGS-B training objective:
 
-$$\mathcal{R}_{\text{price}}(\theta) = \sum_{c=1}^C \sum_{p=1}^P m_{c,p}^{\text{item}} (\beta_{c,p}^{\text{item}})^2 + \sum_{b \in \{\text{cat}, \text{hinge}, \text{count}, \text{cross}\}} w_b \sum_{c=1}^C m_{b,c} (\beta_{b,c})^2 + \bar{m}^{\text{item}}\left[ w_{\text{within}} \sum_{c=1}^C \sum_{p=1}^P (\beta_{c,p}^{\text{item}} - \bar{\beta}_{c,\cdot}^{\text{item}})^2 + w_{\text{between}} P \sum_{c=1}^C (\bar{\beta}_{c,\cdot}^{\text{item}} - \bar{\beta}_{\cdot,\cdot}^{\text{item}})^2 \right] + \bar{m}^{\text{cat}} \sum_{b \in \{\text{cat}, \text{hinge}, \text{count}\}} w_{\text{pool}, b} \sum_{c=1}^C (\beta_{b,c} - \bar{\beta}_{b,\cdot})^2.$$
+$$\mathcal{R}_{\text{price}}(\theta) = \sum_{c=1}^C \sum_{p=1}^P m_{c,p}^{\text{item}} (\beta_{c,p}^{\text{item}})^2 + \sum_{b \in \{\text{cat}, \text{hinge}, \text{count}, \text{cross}\}} w_b \sum_{c=1}^C m_{b,c} (\beta_{b,c})^2 + \bar{m}^{\text{item}}\left[ w_{\text{within}} \sum_{c=1}^C \sum_{p=1}^P (\beta_{c,p}^{\text{item}} - \bar{\beta}_{c,\cdot}^{\text{item}})^2 + w_{\text{between}} \sum_{c=1}^C (\bar{\beta}_{c,\cdot}^{\text{item}} - \bar{\beta}_{\cdot,\cdot}^{\text{item}})^2 \right] + \bar{m}^{\text{cat}} \sum_{b \in \{\text{cat}, \text{hinge}, \text{count}\}} w_{\text{pool}, b} \sum_{c=1}^C (\beta_{b,c} - \bar{\beta}_{b,\cdot})^2.$$
 
-Why does this work so well?
+What does this regularization do?
 1. **All 5 price blocks adapt together during L-BFGS-B optimization**: When $w_{\text{hinge}}$ and $w_{\text{pool}}$ regularize noisy hinge fluctuations during training, $\beta_c^{\text{cat}}$, $\beta_c^{\text{count}}$, and $\beta_{c,p}^{\text{item}}$ simultaneously adjust to maximize the joint log-likelihood.
-2. **100% Permutation-Invariant**: Every sum is symmetric over categories $c \in \{1, \dots, C\}$ and products $p \in \{1, \dots, P\}$. Permuting category indices in any order produces the **exact same penalty and fitted predictions** (verified to $< 10^{-12}$ in `test_category_permutation_invariance_of_regularization` in [`tests/test_whole_law.py`](file:///Users/ajit/Projects/nf_dunnhumby/ebi_chain/whole_law_basket_repo/tests/test_whole_law.py)).
-3. **Validation Selection**: `fit_with_validation_selection` fits candidate penalty tiers (`unregularized`, `mild_hierarchical`, `moderate_hierarchical`, `strong_hierarchical`) to certified stationarity and selects the tier with the highest validation log-likelihood. On `missions_b`, this cuts same-category cross-price relative MAE from `85.8%` (and `37.3%` unregularized) down to **`20.7%`** and raises optimal promotion choices to **`5/6`** (`6/6` on `missions_a` and `zero_price`).
+2. **Permutation-invariant penalty**: Reordering category parameters and their feature moments together leaves this penalty unchanged. This test does not establish arbitrary category-permutation invariance of fitted predictions: the likelihood uses the previous category's price (`index.roll(1)`), which defines a cyclic graph. That graph must also be carried under relabeling; the current implementation fixes it by index. Its economic appropriateness on a new catalogue remains a modeling question.
+3. **Validation Selection**: `fit_with_validation_selection` fits candidate penalty tiers (`unregularized`, `mild_hierarchical`, `moderate_hierarchical`, `strong_hierarchical`) to certified stationarity and selects the tier with the highest validation log-likelihood. In the historical `missions_b` table, this was associated with a change in same-category cross-price relative MAE from `85.8%` (and `37.3%` unregularized) down to **`20.7%`** and raises optimal promotion choices to **`5/6`** (`6/6` on `missions_a` and `zero_price`).
 
 ---
 
@@ -295,7 +295,7 @@ On real supermarket scanner panels—**ERIM** ($C=7, P=4, J=28$ products, `47,85
 
 ### 5.1 Step 1: `StructuredEnergy` (Category-Frontier Dynamic Programming)
 First, how do we build an exact Markov Random Field (energy model) over $J = 64$ products when $2^{64} - 1 \approx 1.84 \times 10^{19}$?
-`StructuredEnergy` ([`whole_law_basket/proposed_model.py`](file:///Users/ajit/Projects/nf_dunnhumby/ebi_chain/whole_law_basket_repo/whole_law_basket/proposed_model.py)) assigns each basket $y \in \{0,1\}^J \setminus \{\mathbf{0}\}$ the energy:
+`StructuredEnergy` ([`whole_law_basket/proposed_model.py`](whole_law_basket/proposed_model.py)) assigns each basket $y \in \{0,1\}^J \setminus \{\mathbf{0}\}$ the energy:
 
 $$\mathcal{E}_{\text{base}}(y \mid z) = \sum_{j=1}^J u_j(z) y_j + \sum_{c=1}^C \gamma_c \frac{n_c(y)(n_c(y) - 1)}{2} + \gamma_{\text{global}} \frac{N(y)(N(y) - 1)}{2} + \sum_{(i, j) \in \mathcal{E}} J_{ij} y_i y_j,$$
 
@@ -310,12 +310,12 @@ where $\mathcal{E}$ is a sparse set of screened pairwise product links (at most 
 4. At category $C - 1$, `partition(..., return_final=True)` outputs the exact log-sum of weights $W_{\text{base}}(N \mid z)$ for every total basket size $N \in \{1, \dots, J\}$!
 
 ### 5.2 Why `StructuredEnergy` Alone Is Not Enough on Real Data
-Look at the Dunnhumby benchmark table ([`results/dunnhumby_comparison.csv`](file:///Users/ajit/Projects/nf_dunnhumby/ebi_chain/whole_law_basket_repo/results/dunnhumby_comparison.csv)): `StructuredEnergy` gets a test log-likelihood of `-6.94702`, but its basket-size Total Variation error is **`0.08139`** (8.14%). Why?
+Look at the Dunnhumby benchmark table ([`results/dunnhumby_comparison.csv`](results/historical/dunnhumby_comparison.csv)): `StructuredEnergy` gets a test log-likelihood of `-6.94702`, but its basket-size Total Variation error is **`0.08139`** (8.14%). Why?
 1. **A single parabola $\gamma_{\text{global}} N(N-1)/2$ cannot fit real supermarket basket-size histograms**: Real grocery trips have a huge spike at $N = 1$ (quick 1-item fill-in trips) and a heavy right tail ($N \ge 10$ weekly stock-up trips). A quadratic function of $N$ is too stiff to match both simultaneously.
 2. **Sparse pairwise links $\mathcal{E}$ miss store-wide shopping missions**: Buying breakfast items across 4 categories or cleaning supplies across 5 categories is driven by a latent trip mission, not just 8 pairwise product edges.
 
 ### 5.3 Step 2: `CompositeWholeLawEnergy` (The Complete Real-Data Whole-Law Model)
-`CompositeWholeLawEnergy` ([`whole_law_basket/proposed_model.py`](file:///Users/ajit/Projects/nf_dunnhumby/ebi_chain/whole_law_basket_repo/whole_law_basket/proposed_model.py)) resolves both limitations while preserving exact $2^J - 1$ normalization and fast backward-DP sampling. It is a mixture of $K_{\text{tot}} = 1 + K_c + K_p$ exact-normalized whole-basket sub-laws:
+`CompositeWholeLawEnergy` ([`whole_law_basket/proposed_model.py`](whole_law_basket/proposed_model.py)) resolves both limitations while preserving exact $2^J - 1$ normalization and fast backward-DP sampling. It is a mixture of $K_{\text{tot}} = 1 + K_c + K_p$ exact-normalized whole-basket sub-laws:
 
 $$\log P(y \mid z) = \operatorname{logsumexp}_{k=0}^{K_{\text{tot}}-1} \Big( \log \pi_k(h) + \log P_k(y \mid z) \Big).$$
 
@@ -345,7 +345,7 @@ $$\log Z_k^{\text{cat}}(z) = A_k^{\text{cat}}(z) + \log\!\big(1 - \exp(-A_k^{\te
 #### 4. Product Bundle Mission Components ($P_m^{\text{prod}}, m = 1 \dots K_p$)
 Initialized from the top singular vectors of the product co-occurrence matrix on training data, each product mission $m$ shifts item utilities by a fixed bundle prototype $M_m^{\text{prod}} \in \mathbb{R}^J$ and category shift $M_{m,c}^{\text{prod-cat}} \in \mathbb{R}^C$, normalized in closed form via `_category_inclusive_weights` in $O(C P^2)$.
 
-When `CompositeWholeLawEnergy` is added on top of `StructuredEnergy` on Dunnhumby ([`results/dunnhumby_comparison.csv`](file:///Users/ajit/Projects/nf_dunnhumby/ebi_chain/whole_law_basket_repo/results/dunnhumby_comparison.csv)), test log-likelihood improves by **`+0.1130` nats per basket** (`-6.94702` $\to$ **`-6.83402`**, with a 95% household-bootstrap CI of `[+0.1041, +0.1224]`), and Basket-Size Total Variation drops by **nearly $4\times$** (`0.08139` $\to$ **`0.02166`**)!
+When `CompositeWholeLawEnergy` is added on top of `StructuredEnergy` on Dunnhumby ([`results/dunnhumby_comparison.csv`](results/historical/dunnhumby_comparison.csv)), test log-likelihood improves by **`+0.1130` nats per basket** (`-6.94702` $\to$ **`-6.83402`**, with a 95% household-bootstrap CI of `[+0.1041, +0.1224]`), and Basket-Size Total Variation drops by **nearly $4\times$** (`0.08139` $\to$ **`0.02166`**)!
 
 ---
 
@@ -364,9 +364,9 @@ Nothing in the mathematics of the Whole-Law Basket Model requires $P_1 = \dots =
 1. **Method 1: Masked Padding to $P_{\max} = \max_{1 \le c \le C} P_c$** (ideal for batched GPU/CPU tensor operations in `CalibratedMissionLaw` and `log_esp`).
 2. **Method 2: Ragged Category Offset Slices** (ideal for category-by-category dynamic programming in `StructuredEnergy` and `CompositeWholeLawEnergy`).
 
-Let's walk through both methods step by step.
+Padding permits batching, but uses storage proportional to $C P_{\max}$ rather than $\sum_c P_c$; it is not free when category sizes differ greatly. Let's walk through both methods step by step.
 
-### 6.1 Method 1: Masked Padding to $P_{\max} = \max_c P_c$ (Zero-Overhead Vectorization)
+### 6.1 Method 1: Masked Padding to $P_{\max} = \max_c P_c$
 Suppose $C = 3$ categories have sizes $(P_1, P_2, P_3) = (2, 5, 3)$, so the largest category has $P_{\max} = 5$ products and the total catalogue has $J = 2 + 5 + 3 = 10$ products.
 
 We store per-category tensors in a rectangular array of shape `(B, C, P_max) = (B, 3, 5)` together with a fixed boolean validity mask $M \in \{0, 1\}^{C \times P_{\max}}$:
@@ -394,10 +394,10 @@ Because adding $e^{-\infty} = 0$ changes nothing:
 * Likewise, in the backward-DP sampler `_sample_esp_subset_local`, any padded slot has inclusion probability $\exp(-\infty - \text{denom}) = 0$, so padded slots are never sampled.
 
 #### Rule 3: Exponential-Race Plackett–Luce (`race_pl.py`) Under Unequal $P_c$
-In `race_observed_log_probability(u_c, y_c)` ([`whole_law_basket/race_pl.py`](file:///Users/ajit/Projects/nf_dunnhumby/ebi_chain/whole_law_basket_repo/whole_law_basket/race_pl.py)):
+In `race_observed_log_probability(u_c, y_c)` ([`whole_law_basket/race_pl.py`](whole_law_basket/race_pl.py)):
 * When $u_{c,p} = -\infty$ for $p > P_c$, the normalized rate is $w_{c,p} = \frac{\exp(-\infty)}{\sum_{q=1}^{P_c} \exp(u_{c,q})} = 0$.
 * In the stopwatch race analogy, a phantom item with rate $w_{c,p} = 0$ has arrival time $T_p = +\infty$ (it never arrives) and contributes $0$ to the outsider rate $w_{\text{out}} = \sum_{j \notin A_c, \, j \le P_c} w_{c,j}$.
-* **The Only Code Change Needed in `race_pl.py`**:
+* **Boundary handling in `race_pl.py`**:
   When a shopper buys **all $P_c$ real products** in category $c$ ($k_c = \sum_{p=1}^{P_c} y_{c,p} = P_c$), there are no real unselected outsiders left in category $c$ ($A_c^c = \emptyset$), so given $n_c = P_c$, the conditional subset probability is $1$ ($\log P_{\text{PL}} = 0$). Therefore, the boundary check `full_or_empty = (k == 0) | (k == p)` simply uses each category's true size $P_c$:
   ```python
   full_or_empty = (k == 0) | (k == P_c)
@@ -415,14 +415,14 @@ When computing the category-mean log-price $\bar{d}_{n,c}$, we divide by the tru
 
 $$\bar{d}_{n,c} = \frac{1}{P_c} \sum_{p=1}^{P_c} d_{n,c,p} = \frac{\sum_{p=1}^{P_{\max}} M_{c,p} d_{n,c,p}}{\sum_{p=1}^{P_{\max}} M_{c,p}}.$$
 
-Similarly, in the permutation-equivariant hierarchical price penalty (`regularization_loss` in [`whole_law_basket/proposed_model.py`](file:///Users/ajit/Projects/nf_dunnhumby/ebi_chain/whole_law_basket_repo/whole_law_basket/proposed_model.py)), each category's mean own-price sensitivity is $\bar{\beta}_{c,\cdot}^{\text{item}} = \frac{1}{P_c}\sum_{p=1}^{P_c} \beta_{c,p}^{\text{item}}$, the global mean across all $J = \sum_{c=1}^C P_c$ products is $\bar{\beta}_{\cdot,\cdot}^{\text{item}} = \frac{1}{J}\sum_{c=1}^C \sum_{p=1}^{P_c} \beta_{c,p}^{\text{item}}$, and the within-/between-category hierarchical decomposition weights each category by its true size $P_c$:
+Similarly, in the permutation-equivariant hierarchical price penalty (`regularization_loss` in [`whole_law_basket/proposed_model.py`](whole_law_basket/proposed_model.py)), each category's mean own-price sensitivity is $\bar{\beta}_{c,\cdot}^{\text{item}} = \frac{1}{P_c}\sum_{p=1}^{P_c} \beta_{c,p}^{\text{item}}$, the global mean across all $J = \sum_{c=1}^C P_c$ products is $\bar{\beta}_{\cdot,\cdot}^{\text{item}} = \frac{1}{J}\sum_{c=1}^C \sum_{p=1}^{P_c} \beta_{c,p}^{\text{item}}$, and the implemented between-category penalty uses normalized sizes $P_c/\bar P$, where $\bar P=J/C$:
 
-$$\mathcal{R}_{\text{hier}}(\beta^{\text{item}}) = w_{\text{within}} \sum_{c=1}^C \sum_{p=1}^{P_c} \big(\beta_{c,p}^{\text{item}} - \bar{\beta}_{c,\cdot}^{\text{item}}\big)^2 + w_{\text{between}} \sum_{c=1}^C P_c \big(\bar{\beta}_{c,\cdot}^{\text{item}} - \bar{\beta}_{\cdot,\cdot}^{\text{item}}\big)^2.$$
+$$\mathcal{R}_{\text{hier}}(\beta^{\text{item}}) = w_{\text{within}} \sum_{c=1}^C \sum_{p=1}^{P_c} \big(\beta_{c,p}^{\text{item}} - \bar{\beta}_{c,\cdot}^{\text{item}}\big)^2 + w_{\text{between}} \sum_{c=1}^C \frac{P_c}{\bar P} \big(\bar{\beta}_{c,\cdot}^{\text{item}} - \bar{\beta}_{\cdot,\cdot}^{\text{item}}\big)^2.$$
 
-Notice why weighting by $P_c$ is statistically natural: by the law of total sum of squares ($\sum_{c=1}^C \sum_{p=1}^{P_c} (\beta_{c,p} - \bar{\beta}_{\cdot,\cdot})^2 = \sum_{c=1}^C \sum_{p=1}^{P_c} (\beta_{c,p} - \bar{\beta}_{c,\cdot})^2 + \sum_{c=1}^C P_c (\bar{\beta}_{c,\cdot} - \bar{\beta}_{\cdot,\cdot})^2$), weighting category $c$ by $P_c$ makes the within- and between-category penalties an exact orthogonal ANOVA decomposition for arbitrary unequal category sizes $P_1, \dots, P_C$!
+The raw sum-of-squares identity uses $P_c$, not $P_c/\bar P$. The code deliberately normalizes the between-category weights so their average is one; for equal category sizes the weight is one. Thus the implemented penalty is a rescaled hierarchical regularizer, **not** the raw ANOVA sum of squares or a function-preserving orthogonalization. Its weights must be selected on validation data. For category sizes $(1,4,2)$ and coefficients $(1);(1,2,3,4);(1,2)$, the within sum is $5.5$ and raw between sum is $2.5$. With both weights one, the implemented value is $5.5+2.5/(7/3)=6.57142857$, not $8$.
 
 ### 6.2 Method 2: Ragged Category Offset Slices in Category-Frontier DP (`StructuredEnergy` & `CompositeWholeLawEnergy`)
-In `StructuredEnergy` and `CompositeWholeLawEnergy` ([`whole_law_basket/proposed_model.py`](file:///Users/ajit/Projects/nf_dunnhumby/ebi_chain/whole_law_basket_repo/whole_law_basket/proposed_model.py)), the basket is already flattened to shape `(B, J)` where $J = \sum_{c=1}^C P_c$, and `compile()` already loops over categories $c = 0, \dots, C-1$.
+In `StructuredEnergy` and `CompositeWholeLawEnergy` ([`whole_law_basket/proposed_model.py`](whole_law_basket/proposed_model.py)), the basket is already flattened to shape `(B, J)` where $J = \sum_{c=1}^C P_c$, and `compile()` already loops over categories $c = 0, \dots, C-1$.
 
 To use ragged category sizes $(P_0, P_1, \dots, P_{C-1})$ directly without padding:
 1. Define the cumulative category boundary offsets:
@@ -439,7 +439,7 @@ To use ragged category sizes $(P_0, P_1, \dots, P_{C-1})$ directly without paddi
 
 ## Chapter 7: All 11 Baseline Models Explained Simply
 
-To test the Whole-Law Basket Model rigorously, [`whole_law_basket/baselines.py`](file:///Users/ajit/Projects/nf_dunnhumby/ebi_chain/whole_law_basket_repo/whole_law_basket/baselines.py) implements **11 distinct baseline models** spanning six modeling paradigms. Every single baseline is normalized over the exact same nonempty basket space $\mathcal{S}_+ = \{0,1\}^J \setminus \{\mathbf{0}\}$ and provides an exact `.sample(ctx, seed)` method:
+To test the Whole-Law Basket Model rigorously, [`whole_law_basket/baselines.py`](whole_law_basket/baselines.py) implements **11 distinct baseline models** spanning six modeling paradigms. Every single baseline is normalized over the exact same nonempty basket space $\mathcal{S}_+ = \{0,1\}^J \setminus \{\mathbf{0}\}$ and provides an exact `.sample(ctx, seed)` method:
 
 ### Paradigm A: Independent Binary Logit Models
 1. **`popularity` (`PooledPopularity`)**:
@@ -480,7 +480,7 @@ To test the Whole-Law Basket Model rigorously, [`whole_law_basket/baselines.py`]
 
 ## Chapter 8: Optimization, Curvature Preconditioning, and Stationarity Certificates
 
-Why do we train all 12 models with **preconditioned bound-constrained L-BFGS-B** ([Byrd, Lu, Nocedal & Zhu 1995](https://epubs.siam.org/doi/10.1137/0916069)) in `fit_lbfgsb` ([`whole_law_basket/metrics.py`](file:///Users/ajit/Projects/nf_dunnhumby/ebi_chain/whole_law_basket_repo/whole_law_basket/metrics.py)) rather than noisy first-order stochastic gradient descent (SGD/Adam)?
+Why do we train all 12 models with **preconditioned bound-constrained L-BFGS-B** ([Byrd, Lu, Nocedal & Zhu 1995](https://epubs.siam.org/doi/10.1137/0916069)) in `fit_lbfgsb` ([`whole_law_basket/metrics.py`](whole_law_basket/metrics.py)) rather than noisy first-order stochastic gradient descent (SGD/Adam)?
 
 ### 8.1 Why Quasi-Newton L-BFGS-B Beats SGD for Structural Basket Models
 In a basket model with household fixed effects $H_{h,j}$, global intercepts $\lambda_j$, and price sensitivities $\beta_j$:
@@ -490,7 +490,7 @@ In a basket model with household fixed effects $H_{h,j}$, global intercepts $\la
 Without preconditioning, the Hessian matrix (curvature) is badly ill-conditioned, causing standard gradient descent to zig-zag for thousands of steps.
 
 ### 8.2 Diagonal Curvature Preconditioning (`scales`)
-In `fit_lbfgsb` ([`whole_law_basket/metrics.py`](file:///Users/ajit/Projects/nf_dunnhumby/ebi_chain/whole_law_basket_repo/whole_law_basket/metrics.py)), we reparameterize $\theta = s \odot v$, where $v$ are the optimizer coordinates and $s_i > 0$ is the inverse square root of the approximate diagonal curvature of parameter $\theta_i$:
+In `fit_lbfgsb` ([`whole_law_basket/metrics.py`](whole_law_basket/metrics.py)), we reparameterize $\theta = s \odot v$, where $v$ are the optimizer coordinates and $s_i > 0$ is the inverse square root of the approximate diagonal curvature of parameter $\theta_i$:
 * **For household parameters** ($H_h$, `need`, `weights`, `s_house`) where household $h$ appears in fraction $f_h = N_h / N_{\text{train}}$ of trips:
   $$s_h = \left(0.15 f_h + \frac{\text{ridge}}{N_{\text{train}}}\right)^{-1/2}.$$
 * **For price parameters** ($\beta_j$, $\beta_j^-$, $\beta_j^+$) with empirical second moment $m_j = \mathbb{E}[d_j^2]$:
@@ -501,7 +501,7 @@ This makes the diagonal of the preconditioned Hessian approximately $1.0$ across
 ### 8.3 Dual Projected-Gradient Stationarity Certificates (`gradient_norm`)
 Because price elasticities $\beta_j \in [0, 8]$ and utility parameters $\theta_i \in [-15, 15]$ have box bounds $[l_i, u_i]$, a parameter at its lower bound $\theta_i = l_i$ is optimal even if its gradient $\nabla_{\theta_i} \mathcal{L} > 0$ (pushing $\theta_i$ further downward against the wall $l_i$).
 
-The **projected gradient** (`gradient_norm` in [`whole_law_basket/metrics.py`](file:///Users/ajit/Projects/nf_dunnhumby/ebi_chain/whole_law_basket_repo/whole_law_basket/metrics.py)) zeros out gradient components that point outward into an active boundary wall:
+The **projected gradient** (`gradient_norm` in [`whole_law_basket/metrics.py`](whole_law_basket/metrics.py)) zeros out gradient components that point outward into an active boundary wall:
 
 $$g_i^{\text{proj}}(\theta) = \begin{cases} 0 & \text{if } \theta_i \le l_i + 10^{-12} \text{ and } \nabla_{\theta_i}\mathcal{L}(\theta) > 0, \\ 0 & \text{if } \theta_i \ge u_i - 10^{-12} \text{ and } \nabla_{\theta_i}\mathcal{L}(\theta) < 0, \\ \nabla_{\theta_i}\mathcal{L}(\theta) & \text{otherwise.} \end{cases}$$
 
@@ -513,7 +513,7 @@ $$\max_i \big|g_i^{\text{proj}}(\theta)\big| \le 2 \times 10^{-4} \quad \text{an
 
 ## Chapter 9: How We Test Basket Models (Likelihood, Generation, Counterfactuals, and Promotions)
 
-A truly useful basket model must pass three distinct tests ([`whole_law_basket/metrics.py`](file:///Users/ajit/Projects/nf_dunnhumby/ebi_chain/whole_law_basket_repo/whole_law_basket/metrics.py) and [`whole_law_basket/synthetic.py`](file:///Users/ajit/Projects/nf_dunnhumby/ebi_chain/whole_law_basket_repo/whole_law_basket/synthetic.py)):
+A truly useful basket model must pass three distinct tests ([`whole_law_basket/metrics.py`](whole_law_basket/metrics.py) and [`whole_law_basket/synthetic.py`](whole_law_basket/synthetic.py)):
 
 ### 9.1 Test 1: Out-of-Sample Predictive Accuracy
 1. **Held-Out Test Log-Likelihood (`test_ll`)**: The average exact log-probability $\frac{1}{B_{\text{test}}} \sum_{b=1}^{B_{\text{test}}} \log P(y_b \mid z_b)$ on future test trips. Higher (less negative) is better.
@@ -531,7 +531,7 @@ For `2,048` seeded test contexts, every model generates `48` synthetic baskets (
 4. **Within-Category Multiple-Purchase MAE (`within_category_multiple_MAE`)**: Mean absolute error in the probability $\mathbb{E}[\mathbb{I}(n_c \ge 2)]$ of buying 2 or more items in the same category.
 
 ### 9.3 Test 3: Causal Price Response & Promotion Optimization (`response_score` & `global_promotion`)
-On the synthetic worlds (`missions_a`, `missions_b`, `zero_price`), we know the exact ground-truth data-generating process (`World` in [`whole_law_basket/synthetic.py`](file:///Users/ajit/Projects/nf_dunnhumby/ebi_chain/whole_law_basket_repo/whole_law_basket/synthetic.py)). We test `18` counterfactual price interventions (single-item 20% discounts, single-item 20% price hikes, category-wide 15% discounts, and cross-category price shifts):
+On the synthetic worlds (`missions_a`, `missions_b`, `zero_price`), we know the exact ground-truth data-generating process (`World` in [`whole_law_basket/synthetic.py`](whole_law_basket/synthetic.py)). We test `18` counterfactual price interventions (single-item 20% discounts, single-item 20% price hikes, category-wide 15% discounts, and cross-category price shifts):
 * **Own-Price Relative MAE (`own_price_rel_mae`)**: How accurately the model predicts the change in sales $\Delta \mathbb{E}[y_{c,p}]$ of the discounted product itself.
 * **Same-Category Cross-Price Relative MAE (`same_category_rel_mae`)**: How accurately the model predicts cannibalization/expansion $\Delta \mathbb{E}[y_{c,q}]$ on *other* products $q \neq p$ in the same category $c$.
 * **Cross-Category Relative MAE (`cross_category_rel_mae`)**: How accurately the model predicts spillover $\Delta \mathbb{E}[y_{c',q}]$ on products in *other* categories $c' \neq c$.
@@ -541,10 +541,10 @@ On the synthetic worlds (`missions_a`, `missions_b`, `zero_price`), we know the 
 
 ## Chapter 10: Empirical Results Across ERIM, Dunnhumby, and Synthetic Worlds
 
-All results below come from canonical fresh fits (`--mode fresh`) on 100% of the training splits (`47,858` ERIM baskets, `87,503` Dunnhumby baskets, and `20,000` synthetic baskets per world) with equal `48`-draw generation budgets and traceable checkpoints in [`results/checkpoints/`](file:///Users/ajit/Projects/nf_dunnhumby/ebi_chain/whole_law_basket_repo/results/checkpoints).
+The tables below reproduce **historical results**, archived under [`results/historical/`](results/historical/). They are not results from a newly completed corrected suite. Some historical neural fits did not pass convergence checks, and earlier training costs omitted fitted dependencies. The current runner records fresh fits, checkpoints and live evaluation under `results/verified_v2/`; that full corrected comparison remains to be run. These tables cannot establish superiority over fully converged, equally budgeted baselines or real causal price accuracy.
 
 ### 10.1 Real Scanner Panels: ERIM ($J = 28$) and Dunnhumby ($J = 64$)
-Full tables: [`results/erim_comparison.csv`](file:///Users/ajit/Projects/nf_dunnhumby/ebi_chain/whole_law_basket_repo/results/erim_comparison.csv) and [`results/dunnhumby_comparison.csv`](file:///Users/ajit/Projects/nf_dunnhumby/ebi_chain/whole_law_basket_repo/results/dunnhumby_comparison.csv).
+Full tables: [`results/erim_comparison.csv`](results/historical/erim_comparison.csv) and [`results/dunnhumby_comparison.csv`](results/historical/dunnhumby_comparison.csv).
 
 | Rank (Dunnhumby) | Model | ERIM Test LL (`47,858` train) | ERIM Size TV | Dunnhumby Test LL (`87,503` train) | Dunnhumby Size TV (`48` draws) | Dunnhumby Recall@5 | Dunnhumby Brier |
 | :---: | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
@@ -564,10 +564,10 @@ Full tables: [`results/erim_comparison.csv`](file:///Users/ajit/Projects/nf_dunn
 **Key Takeaways from Real Scanner Data**:
 1. **`proposed_whole_law` ranks #1 in held-out test log-likelihood on both ERIM (`-3.36726`) and Dunnhumby (`-6.83402`)**, while also achieving the best Recall@5 (`0.47315`) and best MC-corrected Brier score (`0.02729`) on Dunnhumby.
 2. **On ERIM**, `proposed_whole_law` beats `neural_nade` by **`+0.04542` nats/basket** (95% household bootstrap CI `[+0.03971, +0.05162]`) and beats `structured_energy` by **`+0.00401` nats/basket** (95% CI `[+0.00039, +0.00744]`).
-3. **On Dunnhumby**, adding the nonparametric count potential $g(N)$, quick-trip stratum $W_1$, and pre-trip mission mixtures in `CompositeWholeLawEnergy` improves over `structured_energy` by **`+0.11301` nats/basket** (95% CI `[+0.10411, +0.12238]`) and slashes basket-size TV error from `8.14%` down to **`2.17%`**, outperforming `neural_nade` by `+0.00859` nats/basket on test LL (`+0.03020` nats/basket on validation LL: `-6.42339` vs. `-6.45359`).
+3. **On Dunnhumby**, adding the nonparametric count potential $g(N)$, quick-trip stratum $W_1$, and pre-trip mission mixtures in `CompositeWholeLawEnergy` improves over `structured_energy` by **`+0.11301` nats/basket** (95% CI `[+0.10411, +0.12238]`) and slashes basket-size TV error from `8.14%` down to **`2.17%`**, with a point-estimate advantage over `neural_nade` of `+0.00859` nats/basket on test LL (`+0.03020` nats/basket on validation LL: `-6.42339` vs. `-6.45359`).
 
 ### 10.2 Synthetic Counterfactual & Promotion Worlds (`missions_a`, `missions_b`, `zero_price`)
-Full tables: [`results/synthetic_missions_a_comparison.csv`](file:///Users/ajit/Projects/nf_dunnhumby/ebi_chain/whole_law_basket_repo/results/synthetic_missions_a_comparison.csv), [`results/synthetic_missions_b_comparison.csv`](file:///Users/ajit/Projects/nf_dunnhumby/ebi_chain/whole_law_basket_repo/results/synthetic_missions_b_comparison.csv), and [`results/synthetic_zero_price_comparison.csv`](file:///Users/ajit/Projects/nf_dunnhumby/ebi_chain/whole_law_basket_repo/results/synthetic_zero_price_comparison.csv).
+Full tables: [`results/synthetic_missions_a_comparison.csv`](results/historical/synthetic_missions_a_comparison.csv), [`results/synthetic_missions_b_comparison.csv`](results/historical/synthetic_missions_b_comparison.csv), and [`results/synthetic_zero_price_comparison.csv`](results/historical/synthetic_zero_price_comparison.csv).
 
 | World | Model | Test LL | Validation LL | Size TV | Own-Price Rel MAE | Same-Cat Cross Rel MAE | Cross-Cat Rel MAE | Zero-Price MAE | Optimal Plans (of 6) |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
@@ -585,22 +585,22 @@ Full tables: [`results/synthetic_missions_a_comparison.csv`](file:///Users/ajit/
 | `zero_price` | `neural_nade` | `-5.21789` | `-5.22694` | `0.01959` | — | — | — | `0.00082` | `3/6` |
 
 **Key Takeaways from Synthetic Counterfactual Worlds**:
-1. **Why sequential `neural_nade` and `pairwise_ar` struggle on counterfactuals**: Even when `neural_nade` achieves reasonable held-out log-likelihood, its cross-category price response relative MAE is **`84.3%`** on `missions_a` and **`83.9%`** on `missions_b`, and it fails to identify the profit-maximizing promotion on `zero_price` (`3/6`) and `missions_a`/`missions_b` (`4/6`).
-2. **Why `CalibratedMissionLaw` succeeds**: By modeling pre-trip missions, category counts, and unordered Exponential-Race Plackett–Luce choice with joint permutation-equivariant hierarchical price regularization, `proposed_calibrated_mission_law` achieves **`18.6%` same-category relative MAE (`6/6` optimal plans) on `missions_a`**, **`20.7%` same-category relative MAE (`5/6` optimal plans) on `missions_b`**, and **`3.72e-4` zero-price MAE (`6/6` optimal plans) on `zero_price`**.
+1. **Historical response errors, with unresolved fitting confounds**: Even when `neural_nade` achieves reasonable held-out log-likelihood, its cross-category price response relative MAE is **`84.3%`** on `missions_a` and **`83.9%`** on `missions_b`, and it fails to identify the profit-maximizing promotion on `zero_price` (`3/6`) and `missions_a`/`missions_b` (`4/6`).
+2. **Historical mission-model results**: By modeling pre-trip missions, category counts, and unordered Exponential-Race Plackett–Luce choice with joint permutation-equivariant hierarchical price regularization, `proposed_calibrated_mission_law` achieves **`18.6%` same-category relative MAE (`6/6` optimal plans) on `missions_a`**, **`20.7%` same-category relative MAE (`5/6` optimal plans) on `missions_b`**, and **`3.72e-4` zero-price MAE (`6/6` optimal plans) on `zero_price`**.
 
 ---
 
 ## Chapter 11: Codebase Map and Annotated References
 
 ### 11.1 File-by-File Guide to the Repository
-* [`whole_law_basket/race_pl.py`](file:///Users/ajit/Projects/nf_dunnhumby/ebi_chain/whole_law_basket_repo/whole_law_basket/race_pl.py): Exact-mode-centered analytic $\sinh$ log-time Gauss–Legendre quadrature (`race_subset_log_probabilities`, `race_observed_log_probability`, `_find_log_s_mode`, and `verify_race_pl_quadrature`).
-* [`whole_law_basket/proposed_model.py`](file:///Users/ajit/Projects/nf_dunnhumby/ebi_chain/whole_law_basket_repo/whole_law_basket/proposed_model.py): Core implementation of `log_esp`, `_sample_esp_subset_local`, `StructuredEnergy`, `CompositeWholeLawEnergy`, and `CalibratedMissionLaw` (including `regularization_loss` and `fit_with_validation_selection`).
-* [`whole_law_basket/baselines.py`](file:///Users/ajit/Projects/nf_dunnhumby/ebi_chain/whole_law_basket_repo/whole_law_basket/baselines.py): All 10 baseline classes (`PooledPopularity`, `NoPriceIndependent`, `PersonalizedIndependent`, `SizeAwareESP`, `IndependentCategoriesESP`, `LatentMissionESP`, `PairwiseBinaryAR`, `LowRankBilinearAR`, `GaussianFactorMixture`, `FastNeuralNADE`).
-* [`whole_law_basket/metrics.py`](file:///Users/ajit/Projects/nf_dunnhumby/ebi_chain/whole_law_basket_repo/whole_law_basket/metrics.py): Preconditioned L-BFGS-B optimizer (`fit_lbfgsb`), projected gradient norm (`gradient_norm`), parallel sampler (`draws`), and evaluation metrics (`generation_metrics`, `predictive_metrics`, `cluster_interval`).
-* [`whole_law_basket/real_data.py`](file:///Users/ajit/Projects/nf_dunnhumby/ebi_chain/whole_law_basket_repo/whole_law_basket/real_data.py): Standalone loader for bundled ERIM and Dunnhumby splits under [`data/`](file:///Users/ajit/Projects/nf_dunnhumby/ebi_chain/whole_law_basket_repo/data).
-* [`whole_law_basket/synthetic.py`](file:///Users/ajit/Projects/nf_dunnhumby/ebi_chain/whole_law_basket_repo/whole_law_basket/synthetic.py): Ground-truth synthetic mission DGP (`World`), counterfactual price action suite (`actions`, `response_score`), and profit-maximizing promotion evaluator (`global_promotion`).
-* [`benchmarks/run_all_benchmarks.py`](file:///Users/ajit/Projects/nf_dunnhumby/ebi_chain/whole_law_basket_repo/benchmarks/run_all_benchmarks.py): End-to-end benchmark runner supporting `--mode fresh` (default) and `--mode resume`.
-* [`tests/test_whole_law.py`](file:///Users/ajit/Projects/nf_dunnhumby/ebi_chain/whole_law_basket_repo/tests/test_whole_law.py): Automated unit test suite verifying quadrature accuracy, category permutation invariance, exact $2^J - 1$ partition normalization across all models, sampler TV accuracy, and input-price gradients.
+* [`whole_law_basket/race_pl.py`](whole_law_basket/race_pl.py): Exact-mode-centered analytic $\sinh$ log-time Gauss–Legendre quadrature (`race_subset_log_probabilities`, `race_observed_log_probability`, `_newton_log_mode_and_scale`, and `verify_race_pl_quadrature`).
+* [`whole_law_basket/proposed_model.py`](whole_law_basket/proposed_model.py): Core implementation of `log_esp`, `_sample_esp_subset_local`, `StructuredEnergy`, `CompositeWholeLawEnergy`, and `CalibratedMissionLaw` (including `regularization_loss` and `fit_with_validation_selection`).
+* [`whole_law_basket/baselines.py`](whole_law_basket/baselines.py): All 10 baseline classes (`PooledPopularity`, `NoPriceIndependent`, `PersonalizedIndependent`, `SizeAwareESP`, `IndependentCategoriesESP`, `LatentMissionESP`, `PairwiseBinaryAR`, `LowRankBilinearAR`, `GaussianFactorMixture`, `FastNeuralNADE`).
+* [`whole_law_basket/metrics.py`](whole_law_basket/metrics.py): Preconditioned L-BFGS-B optimizer (`fit_lbfgsb`), projected gradient norm (`gradient_norm`), parallel sampler (`draws`), and evaluation metrics (`generation_metrics`, `predictive_metrics`, `cluster_interval`).
+* [`whole_law_basket/real_data.py`](whole_law_basket/real_data.py): Standalone loader for bundled ERIM and Dunnhumby splits under [`data/`](data).
+* [`whole_law_basket/synthetic.py`](whole_law_basket/synthetic.py): Ground-truth synthetic mission DGP (`World`), counterfactual price action suite (`actions`, `response_score`), and profit-maximizing promotion evaluator (`global_promotion`).
+* [`benchmarks/run_all_benchmarks.py`](benchmarks/run_all_benchmarks.py): End-to-end benchmark runner supporting `--mode fresh` (default) and `--mode resume`.
+* [`tests/test_whole_law.py`](tests/test_whole_law.py): Automated unit test suite verifying quadrature accuracy, category permutation invariance, exact $2^J - 1$ partition normalization across all models, sampler TV accuracy, and input-price gradients.
 
 ### 11.2 Foundational Academic References
 1. **Besag, J. (1974)**. [Spatial Interaction and the Statistical Analysis of Lattice Systems](https://academic.oup.com/jrsssb/article/36/2/192/7027394). *Journal of the Royal Statistical Society: Series B (Methodological)*, 36(2), 192–225. *(Foundational paper on Markov Random Fields, Ising/auto-logistic potentials, and pseudolikelihood screening used to select our sparse graph edges $\mathcal{E}$.)*
@@ -614,3 +614,5 @@ Full tables: [`results/synthetic_missions_a_comparison.csv`](file:///Users/ajit/
 9. **Russell, G. J., & Petersen, A. (2000)**. [Analysis of Cross Category Dependence in Market Basket Selection](https://www.researchgate.net/publication/343484851_Market_Basket_Analysis_Recommendation_System_Using_Association_Rules). *Journal of Retailing*, 76(3), 367–392. *(Auto-logistic conditional modeling of cross-category market basket dependence.)*
 10. **Takahasi, H., & Mori, M. (1974)**. [Double Exponential Formulas for Numerical Integration](https://ems.press/journals/prims/articles/2686). *Publications of the Research Institute for Mathematical Sciences*, 9(3), 721–741. *(Foundation for exponential/hyperbolic-sine $\sinh$ coordinate transformations in numerical quadrature.)*
 11. **Uria, B., Côté, M.-A., Gregor, K., Murray, I., & Larochelle, H. (2016)**. [Neural Autoregressive Distribution Estimation](https://jmlr.org/papers/v17/16-272.html). *Journal of Machine Learning Research*, 17(205), 1–37. *(The NADE architecture underlying our `FastNeuralNADE` baseline.)*
+
+The Dunnhumby likelihood gain over neural has a confidence interval crossing zero in the historical analysis. None of these results proves that the mission mechanism or pooling assumptions generalize to a new catalogue.

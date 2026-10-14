@@ -4,6 +4,7 @@
 3. Exact input-price autograd derivative d log P / d dlp matching finite differences for CompositeWholeLawEnergy.
 4. Exact category-permutation invariance of CalibratedMissionLaw's hierarchical price penalty (`regularization_loss`).
 5. Exact 2^J - 1 nonempty partition normalization and sampler distributional agreement across all 13 models.
+6. Unequal (ragged) category sizes P_1, ..., P_C >= 1 across quadrature, DP, exact normalization, packed/padded equivalence, gradients, and L-BFGS-B fitting.
 """
 
 import itertools
@@ -21,6 +22,7 @@ sys.path.insert(0, str(REPO_ROOT))
 from whole_law_basket import (
     verify_race_pl_quadrature,
     race_observed_log_probability,
+    race_subset_log_probabilities,
     StructuredEnergy,
     CompositeWholeLawEnergy,
     CalibratedMissionLaw,
@@ -34,6 +36,7 @@ from whole_law_basket import (
     ShopperFactorAR,
     LogisticNormalFactorMixture,
     FastNeuralNADE,
+    fit_lbfgsb,
 )
 
 
@@ -41,6 +44,27 @@ def _all_nonempty_baskets(C: int, P: int) -> torch.Tensor:
     J = C * P
     rows = [list(bits) for bits in itertools.product((0.0, 1.0), repeat=J) if any(bits)]
     return torch.tensor(rows, dtype=torch.float64).reshape(-1, C, P)
+
+
+def _all_nonempty_ragged_baskets(
+    category_sizes: list[int],
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Return (packed_baskets (N, J_active), padded_baskets (N, C, P_max)) for all 2^{J_active}-1 valid nonempty baskets."""
+    C = len(category_sizes)
+    P_max = max(category_sizes)
+    J_active = sum(category_sizes)
+    rows = [
+        list(bits)
+        for bits in itertools.product((0.0, 1.0), repeat=J_active)
+        if any(bits)
+    ]
+    packed = torch.tensor(rows, dtype=torch.float64)
+    padded = torch.zeros((len(rows), C, P_max), dtype=torch.float64)
+    offset = 0
+    for c, p_c in enumerate(category_sizes):
+        padded[:, c, :p_c] = packed[:, offset : offset + p_c]
+        offset += p_c
+    return packed, padded
 
 
 def test_race_pl_quadrature_all_regimes():
@@ -323,12 +347,206 @@ def test_all_models_exact_normalization_and_sampling():
         ), f"{name} generated empty basket"
 
 
+def test_ragged_category_sizes():
+    """Verify unequal category sizes P_1, ..., P_C >= 1 across quadrature, DP, exact normalization, packed/padded equivalence, gradients, and L-BFGS-B fitting."""
+    gen = torch.Generator().manual_seed(2026)
+
+    # 1. Ragged exponential-race PL quadrature vs unpadded per-category ground truth (both P_max=4 DP and P_max=6 quadrature):
+    for cat_sizes in ([1, 4, 2], [1, 6, 3]):
+        C = len(cat_sizes)
+        P_max = max(cat_sizes)
+        valid_mask = torch.zeros((C, P_max), dtype=torch.bool)
+        u_padded = torch.zeros((C, P_max), dtype=torch.float64)
+        y_padded = torch.zeros((C, P_max), dtype=torch.float64)
+        exact_lps = []
+        for c, p_c in enumerate(cat_sizes):
+            valid_mask[c, :p_c] = True
+            u_c = 0.5 * torch.randn(p_c, generator=gen, dtype=torch.float64)
+            u_padded[c, :p_c] = u_c
+            k_c = min(p_c, c + 1)
+            y_c = torch.zeros(p_c, dtype=torch.float64)
+            y_c[:k_c] = 1.0
+            y_padded[c, :p_c] = y_c
+            exact_lps.append(
+                float(race_observed_log_probability(u_c[None], y_c[None]).item())
+            )
+
+        u_req = u_padded.clone().requires_grad_(True)
+        lp_ragged = race_observed_log_probability(
+            u_req, y_padded, valid_mask=valid_mask
+        )
+        lp_ragged.sum().backward()
+        for c in range(C):
+            err = abs(float(lp_ragged[c].item()) - exact_lps[c])
+            assert (
+                err < 1e-11
+            ), f"Ragged race_observed_log_probability mismatch at cat {c} (sizes={cat_sizes}): err={err}"
+            if cat_sizes[c] < P_max:
+                assert (
+                    float(u_req.grad[c, cat_sizes[c] :].abs().max().item()) == 0.0
+                ), "Non-zero gradient on padded utility slots!"
+
+        if P_max <= 4:
+            sub_lp = race_subset_log_probabilities(u_padded, valid_mask=valid_mask)
+            for c, p_c in enumerate(cat_sizes):
+                sub_lp_unpadded = race_subset_log_probabilities(
+                    u_padded[c : c + 1, :p_c]
+                )[0]
+                assert (
+                    float((sub_lp[c, : 1 << p_c] - sub_lp_unpadded).abs().max().item())
+                    < 1e-12
+                )
+                if p_c < P_max:
+                    assert torch.isneginf(sub_lp[c, 1 << p_c :]).all()
+
+    # 2. Exact 2^{J_active} - 1 partition normalization, packed vs padded equivalence, and sampling for ragged models:
+    cat_sizes = [1, 4, 2]
+    C = len(cat_sizes)
+    P_max = max(cat_sizes)
+    J_active = sum(cat_sizes)
+    cfg = {"category_sizes": cat_sizes, "users": 3, "stores": 1}
+    packed_baskets, padded_baskets = _all_nonempty_ragged_baskets(cat_sizes)
+    n_sets = len(packed_baskets)
+    assert n_sets == (1 << J_active) - 1 == 127
+
+    B = 2
+    dlp_padded = 0.2 * torch.randn((B, C, P_max), generator=gen, dtype=torch.float64)
+    base_padded = (
+        0.3 * torch.randn((B, C, P_max), generator=gen, dtype=torch.float64) - 0.9
+    )
+    # Put arbitrary garbage in padded slots of dlp_padded and base_padded to verify strict masking invariance:
+    dlp_padded[:, 0, 1:] = 999.0
+    dlp_padded[:, 2, 2:] = -999.0
+    base_padded[:, 0, 1:] = 777.0
+    base_padded[:, 2, 2:] = -777.0
+
+    ctx_padded = {
+        "house": torch.tensor([0, 2], dtype=torch.long),
+        "dlp": dlp_padded,
+        "baseline": base_padded,
+    }
+    re_base = StructuredEnergy(cfg, [(0, 1), (1, 5), (2, 6)])
+    with torch.no_grad():
+        re_base.lam.copy_(
+            0.2 * torch.randn(J_active, generator=gen, dtype=torch.float64)
+        )
+        re_base.category_count.copy_(
+            torch.tensor([-0.3, -0.4, -0.2], dtype=torch.float64)
+        )
+        re_base.global_count.fill_(-0.1)
+        re_base.link.copy_(torch.tensor([0.35, -0.25, 0.2], dtype=torch.float64))
+
+    M_cat = 0.2 * torch.randn((3, C), generator=gen, dtype=torch.float64)
+    M_prod = 0.2 * torch.randn((4, J_active), generator=gen, dtype=torch.float64)
+    comp_model = CompositeWholeLawEnergy(cfg, re_base, M_cat, M_prod)
+    mission_model = CalibratedMissionLaw(cfg)
+    with torch.no_grad():
+        mission_model.price.copy_(
+            torch.rand((C, P_max), generator=gen, dtype=torch.float64) + 0.5
+        )
+        mission_model._mask_parameters_()
+
+    ctx_packed = {
+        "house": ctx_padded["house"],
+        "dlp": mission_model.pack_active(dlp_padded),
+        "baseline": mission_model.pack_active(base_padded),
+    }
+
+    for name, model in (
+        ("structured_energy", re_base),
+        ("composite_whole_law", comp_model),
+        ("calibrated_mission_law", mission_model),
+    ):
+        for b_idx in range(B):
+            sub_pad = {
+                k: v[b_idx : b_idx + 1].expand(n_sets, *([-1] * (v.ndim - 1)))
+                for k, v in ctx_padded.items()
+            }
+            sub_pack = {
+                k: v[b_idx : b_idx + 1].expand(n_sets, *([-1] * (v.ndim - 1)))
+                for k, v in ctx_packed.items()
+            }
+            with torch.no_grad():
+                lp_pad = model.log_probability(sub_pad, padded_baskets)
+                lp_pack = model.log_probability(sub_pack, packed_baskets)
+            max_diff = float((lp_pad - lp_pack).abs().max().item())
+            assert (
+                max_diff < 1e-12
+            ), f"{name} padded vs packed log_probability mismatch: {max_diff}"
+            total_prob = float(torch.logsumexp(lp_pad, dim=0).exp().item())
+            assert (
+                abs(total_prob - 1.0) < 1e-10
+            ), f"{name} failed ragged exact normalization: sum={total_prob}"
+
+        # Verify invalid basket with selection on padded slot gets -inf log_probability:
+        bad_y = torch.zeros((B, C, P_max), dtype=torch.float64)
+        bad_y[:, 0, 0] = 1.0
+        bad_y[:, 0, 1] = 1.0  # slot 1 in category 0 (P_0=1) is invalid!
+        with torch.no_grad():
+            lp_bad = model.log_probability(ctx_padded, bad_y)
+        assert torch.isneginf(
+            lp_bad
+        ).all(), f"{name} did not assign -inf to invalid padded basket"
+
+        # Verify input price autograd gradient has zero gradient on padded slots:
+        d_req = dlp_padded.clone().requires_grad_(True)
+        valid_y = padded_baskets[:B]
+        lp_g = model.log_probability({**ctx_padded, "dlp": d_req}, valid_y)
+        (-lp_g.mean()).backward()
+        assert torch.isfinite(d_req.grad).all()
+        assert float(d_req.grad[:, 0, 1:].abs().max().item()) == 0.0
+        assert float(d_req.grad[:, 2, 2:].abs().max().item()) == 0.0
+
+        # Verify sampler never activates padded slots and produces non-empty baskets:
+        samples = model.sample(ctx_padded, seed=314)
+        assert samples.shape == (B, C, P_max)
+        assert float(samples[:, 0, 1:].abs().max().item()) == 0.0
+        assert float(samples[:, 2, 2:].abs().max().item()) == 0.0
+        assert samples.sum(dim=(1, 2)).min().item() >= 1.0
+
+    # 3. Short optimization smoke check; final-weight stationarity is tested in test_ragged_pipeline.py:
+    fit_model = CalibratedMissionLaw(cfg)
+    fit_model.set_regularization_config(
+        {"w_pr_within": 10.0, "w_pr_between": 5.0, "l2_price": 0.2, "w_cat_var": 20.0}
+    )
+    n_train = 24
+    train_ctx = {
+        "house": torch.randint(0, 3, (n_train,), generator=gen, dtype=torch.long),
+        "dlp": 0.15
+        * torch.randn((n_train, C, P_max), generator=gen, dtype=torch.float64),
+        "baseline": -1.0 * torch.ones((n_train, C, P_max), dtype=torch.float64),
+    }
+    train_y = mission_model.sample(train_ctx, seed=555)
+    fit_model.initialize((train_ctx, train_y))
+    with torch.no_grad():
+        nll_before = float(
+            (-fit_model.log_probability(train_ctx, train_y).mean()).item()
+        )
+    fit_lbfgsb(
+        fit_model,
+        (train_ctx, train_y),
+        (train_ctx, train_y),
+        ridge=10.0,
+        maxiter=15,
+    )
+    with torch.no_grad():
+        nll_after = float(
+            (-fit_model.log_probability(train_ctx, train_y).mean()).item()
+        )
+    assert (
+        nll_after < nll_before
+    ), f"L-BFGS-B did not reduce ragged NLL: {nll_before} -> {nll_after}"
+    assert float(fit_model.price[0, 1:].abs().max().item()) == 0.0
+    assert float(fit_model.price[2, 2:].abs().max().item()) == 0.0
+
+
 if __name__ == "__main__":
     test_race_pl_quadrature_all_regimes()
     test_category_permutation_invariance_of_regularization()
     test_large_category_end_to_end_both_models()
     test_composite_input_price_gradient_and_binomial_sampler()
     test_all_models_exact_normalization_and_sampling()
+    test_ragged_category_sizes()
     print(
-        "ALL QUADRATURE, PERMUTATION-INVARIANCE, LARGE-P END-TO-END, PRICE-GRADIENT, AND 13-MODEL NORMALIZATION TESTS PASSED!"
+        "ALL QUADRATURE, PERMUTATION-INVARIANCE, LARGE-P END-TO-END, PRICE-GRADIENT, 13-MODEL NORMALIZATION, AND RAGGED P_c TESTS PASSED!"
     )

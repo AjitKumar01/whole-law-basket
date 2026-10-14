@@ -15,13 +15,14 @@ strictly concave on (-infty, infty) for ANY heterogeneous utility vector u:
     Phi'(v)  = 1 - exp(v) + sum_{i in A} psi(r_i * exp(v)),   psi(x) = x / expm1(x),
     Phi''(v) = -exp(v) + sum_{i in A} psi(r_i * exp(v)) * (1 - r_i * exp(v) - psi(r_i * exp(v))) < 0.
 
-Damped Newton iterations inside torch.no_grad() locate the exact unique mode v* = log(s*)
-and exact local standard deviation sigma_v = (-Phi''(v*))^{-1/2} in O(|A|) time.
+Damped Newton iterations inside torch.no_grad() estimate the unique mode v* = log(s*)
+and local curvature scale sigma_v = (-Phi''(v*))^{-1/2} in O(|A|) time.
 Mapping Gauss-Legendre nodes z in (-1, 1) via the entire C^infty chart
     v(z) = v* + scale * sinh(alpha * z),   scale = 2.6 * sigma_v,   alpha = 3.4,
-avoids fractional-power endpoint singularities and achieves 1e-12 to 1e-15 accuracy
-across both dense selections (e.g. P=1024, k=512) and extreme utility heterogeneity
-(e.g. u = [10, 10, 10, 10, 10, 10, -10, 0]) while preserving exact autograd derivatives.
+avoids the s=0 endpoint and supports dense selections, heterogeneous utilities,
+and ragged category sizes P_c >= 1. Finite quadrature is approximate; regression
+checks cover representative regimes, not a uniform error bound. Autograd uses
+a detached coordinate chart to approximate derivatives of the underlying integral.
 """
 
 import math
@@ -71,7 +72,7 @@ def subset_log_probabilities(u: torch.Tensor) -> torch.Tensor:
 def _newton_log_mode_and_scale(
     log_ratio: torch.Tensor, y_mask: torch.Tensor, n_steps: int = 14
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    """Find exact mode v* = log(s*) and width scale of concave log-integrand Phi(v)."""
+    """Estimate mode v* = log(s*) and width scale of concave log-integrand Phi(v)."""
     lr = log_ratio.detach()
     y_a = y_mask.detach()
     v_mode = torch.zeros_like(y_a[..., 0])
@@ -104,28 +105,47 @@ def _newton_log_mode_and_scale(
 
 
 def race_observed_log_probability(
-    u: torch.Tensor, y_mask: torch.Tensor, n_nodes: int = 128
+    u: torch.Tensor,
+    y_mask: torch.Tensor,
+    n_nodes: int = 128,
+    valid_mask: torch.Tensor | None = None,
 ) -> torch.Tensor:
-    """O(B * C * P * M) exact-mode-centered analytic sinh race PL log-probability for arbitrary P, k, and heterogeneous u."""
+    """O(B * C * P * M) exact-mode-centered analytic sinh race PL log-probability for arbitrary (possibly ragged) P_c, k, and heterogeneous u."""
     lead_shape = u.shape[:-1]
     p = u.shape[-1]
+    if valid_mask is not None:
+        valid_flat = valid_mask.to(torch.bool).broadcast_to(u.shape).reshape(-1, p)
+    else:
+        valid_flat = (u > -1e30).reshape(-1, p)
+
     u_flat = u.reshape(-1, p)
-    y_flat = y_mask.to(u.dtype).reshape(-1, p)
+    u_safe = torch.where(valid_flat, u_flat, torch.zeros_like(u_flat))
+    u_masked = torch.where(valid_flat, u_flat, torch.full_like(u_flat, -torch.inf))
+    y_raw = y_mask.to(u.dtype).reshape(-1, p)
+    invalid_sel = ((y_raw > 0.5) & (~valid_flat)).any(dim=-1)
+    y_flat = torch.where(valid_flat, y_raw, torch.zeros_like(u_flat))
+
     k = y_flat.sum(dim=-1)
+    p_eff = valid_flat.sum(dim=-1).to(k.dtype)
 
-    log_w = u_flat - torch.logsumexp(u_flat, dim=-1, keepdim=True)
-    k1_lp = (log_w * y_flat).sum(dim=-1)
-    out = torch.where(k == 1, k1_lp, torch.zeros_like(k1_lp))
+    log_denom = torch.logsumexp(u_masked, dim=-1, keepdim=True)
+    log_w_safe = u_safe - log_denom
+    k1_lp = torch.where(y_flat > 0.5, log_w_safe, torch.zeros_like(log_w_safe)).sum(
+        dim=-1
+    )
+    out = torch.where((k == 1) & (p_eff > 1), k1_lp, torch.zeros_like(k1_lp))
 
-    active = (k >= 2) & (k < p)
+    active = (k >= 2) & (k < p_eff) & (~invalid_sel)
     if active.any():
-        u_a = u_flat[active]
+        u_a = u_safe[active]
+        u_m_a = u_masked[active]
         y_a = y_flat[active]
+        val_a = valid_flat[active]
         neg_inf = torch.full_like(u_a, -torch.inf)
         log_w_out = torch.logsumexp(
-            torch.where(y_a < 0.5, u_a, neg_inf), dim=-1, keepdim=True
+            torch.where((y_a < 0.5) & val_a, u_m_a, neg_inf), dim=-1, keepdim=True
         )
-        log_ratio = u_a - log_w_out
+        log_ratio = torch.where(val_a, u_a - log_w_out, torch.zeros_like(u_a))
 
         sh, log_dz = _get_base_sinh_legendre(
             n_nodes, alpha=3.4, device=u.device, dtype=u.dtype
@@ -153,10 +173,13 @@ def race_observed_log_probability(
         out = out.clone()
         out[active] = integral
 
+    out = torch.where(invalid_sel, torch.full_like(out, -torch.inf), out)
     return out.reshape(lead_shape)
 
 
-def race_subset_log_probabilities(u: torch.Tensor, n_nodes: int = 128) -> torch.Tensor:
+def race_subset_log_probabilities(
+    u: torch.Tensor, n_nodes: int = 128, valid_mask: torch.Tensor | None = None
+) -> torch.Tensor:
     """Differentiable exponential-race Plackett-Luce log-probabilities for all 2^P subsets (small P<=8)."""
     p = u.shape[-1]
     masks = torch.tensor(
@@ -166,7 +189,17 @@ def race_subset_log_probabilities(u: torch.Tensor, n_nodes: int = 128) -> torch.
     )
     u_exp = u.unsqueeze(-2).expand(*u.shape[:-1], 1 << p, p)
     masks_exp = masks.expand(*u.shape[:-1], 1 << p, p)
-    return race_observed_log_probability(u_exp, masks_exp, n_nodes=n_nodes)
+    vm_exp = (
+        valid_mask.to(torch.bool)
+        .broadcast_to(u.shape)
+        .unsqueeze(-2)
+        .expand(*u.shape[:-1], 1 << p, p)
+        if valid_mask is not None
+        else None
+    )
+    return race_observed_log_probability(
+        u_exp, masks_exp, n_nodes=n_nodes, valid_mask=vm_exp
+    )
 
 
 def verify_race_pl_quadrature() -> dict:
