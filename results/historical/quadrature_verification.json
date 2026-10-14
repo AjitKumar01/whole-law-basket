@@ -1,0 +1,79 @@
+{
+  "P4_max_log_prob_error_all_subsets": 8.051892486093948e-13,
+  "P4_max_autograd_error": 1.7569279364693102e-13,
+  "P4_observed_vs_subset_dp_error": 5.329070518200751e-15,
+  "large_category_checks": {
+    "P_16_k_3": {
+      "P": 16,
+      "selected_k": 3,
+      "max_log_prob_error_vs_exact_combinatorial": 4.440892098500626e-15,
+      "shift_invariance_gradient_sum_error": 3.3306690738754696e-16,
+      "forward_backward_seconds": 0.0025137909997283714
+    },
+    "P_64_k_3": {
+      "P": 64,
+      "selected_k": 3,
+      "max_log_prob_error_vs_exact_combinatorial": 5.329070518200751e-15,
+      "shift_invariance_gradient_sum_error": 5.551115123125783e-16,
+      "forward_backward_seconds": 0.01996616699943843
+    },
+    "P_64_k_32": {
+      "P": 64,
+      "selected_k": 32,
+      "max_log_prob_error_vs_exact_combinatorial": 7.105427357601002e-15,
+      "shift_invariance_gradient_sum_error": 0.0,
+      "forward_backward_seconds": 0.0067472080008883495
+    },
+    "P_64_k_63": {
+      "P": 64,
+      "selected_k": 63,
+      "max_log_prob_error_vs_exact_combinatorial": 4.440892098500626e-15,
+      "shift_invariance_gradient_sum_error": 0.0,
+      "forward_backward_seconds": 0.0023299590011447435
+    },
+    "P_1024_k_3": {
+      "P": 1024,
+      "selected_k": 3,
+      "max_log_prob_error_vs_exact_combinatorial": 3.552713678800501e-15,
+      "shift_invariance_gradient_sum_error": 8.881784197001252e-16,
+      "forward_backward_seconds": 0.016296207999403123
+    },
+    "P_1024_k_512": {
+      "P": 1024,
+      "selected_k": 512,
+      "max_log_prob_error_vs_exact_combinatorial": 0.0,
+      "shift_invariance_gradient_sum_error": 5.684341886080802e-14,
+      "forward_backward_seconds": 0.007314917000257992
+    }
+  },
+  "unequal_utility_normalization_stress": [
+    {
+      "P": 8,
+      "selected_count": 7,
+      "scale": 2.0,
+      "sum_over_all_subsets_of_that_size": 1.0000000000003317,
+      "abs_normalization_error": 3.3173463975799677e-13
+    },
+    {
+      "P": 8,
+      "selected_count": 7,
+      "scale": 5.0,
+      "sum_over_all_subsets_of_that_size": 1.0000000000414049,
+      "abs_normalization_error": 4.140487952497551e-11
+    },
+    {
+      "P": 8,
+      "selected_count": 7,
+      "scale": 10.0,
+      "sum_over_all_subsets_of_that_size": 0.9999999999767986,
+      "abs_normalization_error": 2.320144076861652e-11
+    },
+    {
+      "P": 8,
+      "selected_count": 7,
+      "scale": 20.0,
+      "sum_over_all_subsets_of_that_size": 1.0000000000004399,
+      "abs_normalization_error": 4.39870362356487e-13
+    }
+  ]
+}

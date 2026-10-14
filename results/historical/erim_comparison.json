@@ -1,0 +1,390 @@
+{
+  "dataset": "erim",
+  "mode": "fresh",
+  "train_baskets": 47858,
+  "validation_baskets": 15696,
+  "test_baskets": 15403,
+  "generation_contexts": 2048,
+  "generation_draws_per_context": 48,
+  "proposed_fit_record": {
+    "initial_objective": 2.6825785845812766,
+    "final_objective": 2.672788362906254,
+    "best_validation_ll": -3.4043547652283626,
+    "final_validation_ll": -3.406835036941397,
+    "final_raw_projected_gradient": 0.00013131113154533566,
+    "final_scaled_projected_gradient": 0.00014150000909110105,
+    "active_parameter_count": 3927,
+    "total_parameter_count": 375226,
+    "stationarity_passed": true,
+    "iterations": 66,
+    "seconds": 1.034916707998491
+  },
+  "summary_table": [
+    {
+      "model": "proposed_whole_law",
+      "family": "composite_whole_law_nonparametric_count_and_missions",
+      "train_baskets": 47858,
+      "generation_draws": 48,
+      "test_ll": -3.367257288950921,
+      "validation_ll": -3.406835036941397,
+      "size_TV": 0.022959391276041664,
+      "frequency_MAE": 0.010464622860863094,
+      "category_pair_MAE": 0.003707159133184524,
+      "within_category_multiple_MAE": 0.0006277901785714286,
+      "recall5": 0.6778238932291667,
+      "Brier": 0.0358871104386319,
+      "raw_projected_gradient": 0.00013131113154533566,
+      "scaled_projected_gradient": 0.00014150000909110105,
+      "stationarity_passed": true,
+      "generation_seconds": 0.2755931669998972,
+      "fit_seconds": 1.034916707998491,
+      "checkpoint_path": "results/checkpoints/erim/proposed_whole_law.pt",
+      "proposed_gain_over_model": 0.0,
+      "proposed_gain_95_ci_low": 0.0,
+      "proposed_gain_95_ci_high": 0.0
+    },
+    {
+      "model": "structured_energy",
+      "family": "category_frontier_dp_energy",
+      "train_baskets": 47858,
+      "generation_draws": 48,
+      "test_ll": -3.371271232438618,
+      "validation_ll": -3.412587935093706,
+      "size_TV": 0.014272054036458344,
+      "frequency_MAE": 0.01078251429966518,
+      "category_pair_MAE": 0.003652905660962302,
+      "within_category_multiple_MAE": 0.0007847377232142857,
+      "recall5": 0.6773600260416666,
+      "Brier": 0.03583522746386619,
+      "raw_projected_gradient": 5.842920975068196e-05,
+      "scaled_projected_gradient": 5.842920975068196e-05,
+      "stationarity_passed": true,
+      "generation_seconds": 0.5513967909992061,
+      "fit_seconds": 9.41052504199979,
+      "checkpoint_path": "results/checkpoints/erim/structured_energy.pt",
+      "proposed_gain_over_model": 0.004013943487696894,
+      "proposed_gain_95_ci_low": 0.0003897764590655746,
+      "proposed_gain_95_ci_high": 0.007442257598359556
+    },
+    {
+      "model": "pairwise_ar",
+      "family": "pairwise_binary_ar",
+      "train_baskets": 47858,
+      "generation_draws": 48,
+      "test_ll": -3.388046331219647,
+      "validation_ll": -3.423319686752728,
+      "size_TV": 0.021260579427083325,
+      "frequency_MAE": 0.010632469540550594,
+      "category_pair_MAE": 0.004151359437003969,
+      "within_category_multiple_MAE": 0.0013442266555059525,
+      "recall5": 0.6684000651041667,
+      "Brier": 0.0360180391970618,
+      "raw_projected_gradient": 8.201821261203768e-05,
+      "scaled_projected_gradient": 0.00012302731891805651,
+      "stationarity_passed": true,
+      "generation_seconds": 0.1382122499999241,
+      "fit_seconds": 0.3494792919991596,
+      "checkpoint_path": "results/checkpoints/erim/pairwise_ar.pt",
+      "proposed_gain_over_model": 0.0207890422687257,
+      "proposed_gain_95_ci_low": 0.016767471262270725,
+      "proposed_gain_95_ci_high": 0.024705498442396355
+    },
+    {
+      "model": "low_rank_bilinear_ar",
+      "family": "low_rank_bilinear_ar_rank8",
+      "train_baskets": 47858,
+      "generation_draws": 48,
+      "test_ll": -3.394364625514698,
+      "validation_ll": -3.4279369270759177,
+      "size_TV": 0.018849690755208336,
+      "frequency_MAE": 0.01085844494047619,
+      "category_pair_MAE": 0.003635951450892857,
+      "within_category_multiple_MAE": 0.0031345912388392855,
+      "recall5": 0.6693359375,
+      "Brier": 0.036034225572085556,
+      "raw_projected_gradient": 6.821880426161972e-05,
+      "scaled_projected_gradient": 0.00010232820639242958,
+      "stationarity_passed": true,
+      "generation_seconds": 0.14657945899853075,
+      "fit_seconds": 0.40469225000015285,
+      "checkpoint_path": "results/checkpoints/erim/low_rank_bilinear_ar.pt",
+      "proposed_gain_over_model": 0.02710733656377722,
+      "proposed_gain_95_ci_low": 0.022778218457621954,
+      "proposed_gain_95_ci_high": 0.03129952636567129
+    },
+    {
+      "model": "independent_parent",
+      "family": "mvp_independent_logit",
+      "train_baskets": 47858,
+      "generation_draws": 48,
+      "test_ll": -3.396275637508092,
+      "validation_ll": -3.4367306508325286,
+      "size_TV": 0.027160644531250014,
+      "frequency_MAE": 0.01066407703218006,
+      "category_pair_MAE": 0.003410218253968253,
+      "within_category_multiple_MAE": 0.004404703776041666,
+      "recall5": 0.6658365885416666,
+      "Brier": 0.03589139279381965,
+      "raw_projected_gradient": 8.63086586237636e-05,
+      "scaled_projected_gradient": 0.0001294629879356454,
+      "stationarity_passed": true,
+      "generation_seconds": 0.07961708299990278,
+      "fit_seconds": 0.10097795799993037,
+      "checkpoint_path": "results/checkpoints/erim/independent_parent.pt",
+      "proposed_gain_over_model": 0.029018348557170705,
+      "proposed_gain_95_ci_low": 0.023847953327038273,
+      "proposed_gain_95_ci_high": 0.03417993640990396
+    },
+    {
+      "model": "gaussian_factor_mixture",
+      "family": "gaussian_factor_mixture_K6_M12",
+      "train_baskets": 47858,
+      "generation_draws": 48,
+      "test_ll": -3.4034217957753112,
+      "validation_ll": -3.4387531861750666,
+      "size_TV": 0.02928670247395836,
+      "frequency_MAE": 0.01112583705357143,
+      "category_pair_MAE": 0.003560384114583334,
+      "within_category_multiple_MAE": 0.004789806547619047,
+      "recall5": 0.6608561197916667,
+      "Brier": 0.03606579441429996,
+      "raw_projected_gradient": 2.4012392727748664e-05,
+      "scaled_projected_gradient": 3.6018589091622996e-05,
+      "stationarity_passed": true,
+      "generation_seconds": 0.2346239999988029,
+      "fit_seconds": 1.3397485410005174,
+      "checkpoint_path": "results/checkpoints/erim/gaussian_factor_mixture.pt",
+      "proposed_gain_over_model": 0.036164506824390076,
+      "proposed_gain_95_ci_low": 0.031397477508941375,
+      "proposed_gain_95_ci_high": 0.0405701006215923
+    },
+    {
+      "model": "neural_nade",
+      "family": "conditional_NADE_H16_crossprice_rank8",
+      "train_baskets": 47858,
+      "generation_draws": 48,
+      "test_ll": -3.4126787252224005,
+      "validation_ll": -3.4198483209435504,
+      "size_TV": 0.01999918619791668,
+      "frequency_MAE": 0.010468619210379466,
+      "category_pair_MAE": 0.004018632192460317,
+      "within_category_multiple_MAE": 0.0016261509486607143,
+      "recall5": 0.6646972656250001,
+      "Brier": 0.036140063130263744,
+      "raw_projected_gradient": 7.808653709085601e-05,
+      "scaled_projected_gradient": 0.00011712980563628403,
+      "stationarity_passed": true,
+      "generation_seconds": 0.3020047499994689,
+      "fit_seconds": 6.349865000000136,
+      "checkpoint_path": "results/checkpoints/erim/neural_nade.pt",
+      "proposed_gain_over_model": 0.04542143627147924,
+      "proposed_gain_95_ci_low": 0.0397056250939336,
+      "proposed_gain_95_ci_high": 0.05162344053726676
+    },
+    {
+      "model": "size_aware_esp",
+      "family": "size_aware_esp",
+      "train_baskets": 47858,
+      "generation_draws": 48,
+      "test_ll": -3.426270051486863,
+      "validation_ll": -3.455887605044698,
+      "size_TV": 0.018198649088541644,
+      "frequency_MAE": 0.010753086635044642,
+      "category_pair_MAE": 0.003765287853422619,
+      "within_category_multiple_MAE": 0.006904238746279762,
+      "recall5": 0.6741617838541667,
+      "Brier": 0.0358911299777973,
+      "raw_projected_gradient": 0.00032301252429048377,
+      "scaled_projected_gradient": 0.0009755696940507828,
+      "stationarity_passed": false,
+      "generation_seconds": 0.3451301670011162,
+      "fit_seconds": 0.5377283750003699,
+      "checkpoint_path": "results/checkpoints/erim/size_aware_esp.pt",
+      "proposed_gain_over_model": 0.05901276253594126,
+      "proposed_gain_95_ci_low": 0.05200559006903843,
+      "proposed_gain_95_ci_high": 0.0658850697107968
+    },
+    {
+      "model": "mission_esp",
+      "family": "mission_esp_K2",
+      "train_baskets": 47858,
+      "generation_draws": 48,
+      "test_ll": -3.467516719073562,
+      "validation_ll": -3.502092392744098,
+      "size_TV": 0.007690429687499994,
+      "frequency_MAE": 0.012129284086681546,
+      "category_pair_MAE": 0.005321684337797619,
+      "within_category_multiple_MAE": 0.0008472260974702382,
+      "recall5": 0.6818522135416667,
+      "Brier": 0.03653339049736417,
+      "raw_projected_gradient": 9.134295978020524e-05,
+      "scaled_projected_gradient": 0.00013701443967030787,
+      "stationarity_passed": true,
+      "generation_seconds": 0.26041375000022526,
+      "fit_seconds": 1.788733625000532,
+      "checkpoint_path": "results/checkpoints/erim/mission_esp.pt",
+      "proposed_gain_over_model": 0.10025943012264057,
+      "proposed_gain_95_ci_low": 0.09330340050992623,
+      "proposed_gain_95_ci_high": 0.10771898996799889
+    },
+    {
+      "model": "independent_categories_esp",
+      "family": "independent_categories_esp",
+      "train_baskets": 47858,
+      "generation_draws": 48,
+      "test_ll": -3.476514036162817,
+      "validation_ll": -3.5123993435557255,
+      "size_TV": 0.023590087890624976,
+      "frequency_MAE": 0.012057349795386906,
+      "category_pair_MAE": 0.004893469432043651,
+      "within_category_multiple_MAE": 0.0007237025669642857,
+      "recall5": 0.6725992838541667,
+      "Brier": 0.036674429942771654,
+      "raw_projected_gradient": 7.06350900796056e-05,
+      "scaled_projected_gradient": 0.0001059526351194084,
+      "stationarity_passed": true,
+      "generation_seconds": 0.15174629199827905,
+      "fit_seconds": 0.48493491699991864,
+      "checkpoint_path": "results/checkpoints/erim/independent_categories_esp.pt",
+      "proposed_gain_over_model": 0.10925674721189556,
+      "proposed_gain_95_ci_low": 0.1019192483458436,
+      "proposed_gain_95_ci_high": 0.11700285246132162
+    },
+    {
+      "model": "no_price",
+      "family": "no_price",
+      "train_baskets": 47858,
+      "generation_draws": 48,
+      "test_ll": -3.485618176038907,
+      "validation_ll": -3.5197724326063424,
+      "size_TV": 0.016347249348958336,
+      "frequency_MAE": 0.011579967680431546,
+      "category_pair_MAE": 0.004179454985119048,
+      "within_category_multiple_MAE": 0.003384544735863095,
+      "recall5": 0.6477132161458333,
+      "Brier": 0.036670688679394624,
+      "raw_projected_gradient": 9.489020757998047e-05,
+      "scaled_projected_gradient": 0.0001423353113699707,
+      "stationarity_passed": true,
+      "generation_seconds": 0.07498366700019687,
+      "fit_seconds": 0.046898000000510365,
+      "checkpoint_path": "results/checkpoints/erim/no_price.pt",
+      "proposed_gain_over_model": 0.11836088708798623,
+      "proposed_gain_95_ci_low": 0.10543533878733147,
+      "proposed_gain_95_ci_high": 0.13211510200636936
+    },
+    {
+      "model": "popularity",
+      "family": "popularity",
+      "train_baskets": 47858,
+      "generation_draws": 48,
+      "test_ll": -4.297471174834674,
+      "validation_ll": -4.321232401316213,
+      "size_TV": 0.06071980794270835,
+      "frequency_MAE": 0.012583051409040178,
+      "category_pair_MAE": 0.0025431315104166665,
+      "within_category_multiple_MAE": 0.005780901227678571,
+      "recall5": 0.39812011718749996,
+      "Brier": 0.041864257936178116,
+      "raw_projected_gradient": 5.253537964866259e-05,
+      "scaled_projected_gradient": 7.880306947299388e-05,
+      "stationarity_passed": true,
+      "generation_seconds": 0.07126604199947906,
+      "fit_seconds": 0.019349874999534222,
+      "checkpoint_path": "results/checkpoints/erim/popularity.pt",
+      "proposed_gain_over_model": 0.9302138858837526,
+      "proposed_gain_95_ci_low": 0.9020798409321599,
+      "proposed_gain_95_ci_high": 0.9607314293421422
+    }
+  ],
+  "paired_household_bootstrap_vs_proposed": {
+    "gaussian_factor_mixture": {
+      "mean_gain": 0.036164506824390076,
+      "cluster_95_ci": [
+        0.031397477508941375,
+        0.0405701006215923
+      ],
+      "cluster_count": 3340
+    },
+    "independent_categories_esp": {
+      "mean_gain": 0.10925674721189556,
+      "cluster_95_ci": [
+        0.1019192483458436,
+        0.11700285246132162
+      ],
+      "cluster_count": 3340
+    },
+    "independent_parent": {
+      "mean_gain": 0.029018348557170705,
+      "cluster_95_ci": [
+        0.023847953327038273,
+        0.03417993640990396
+      ],
+      "cluster_count": 3340
+    },
+    "low_rank_bilinear_ar": {
+      "mean_gain": 0.02710733656377722,
+      "cluster_95_ci": [
+        0.022778218457621954,
+        0.03129952636567129
+      ],
+      "cluster_count": 3340
+    },
+    "mission_esp": {
+      "mean_gain": 0.10025943012264057,
+      "cluster_95_ci": [
+        0.09330340050992623,
+        0.10771898996799889
+      ],
+      "cluster_count": 3340
+    },
+    "neural_nade": {
+      "mean_gain": 0.04542143627147924,
+      "cluster_95_ci": [
+        0.0397056250939336,
+        0.05162344053726676
+      ],
+      "cluster_count": 3340
+    },
+    "no_price": {
+      "mean_gain": 0.11836088708798623,
+      "cluster_95_ci": [
+        0.10543533878733147,
+        0.13211510200636936
+      ],
+      "cluster_count": 3340
+    },
+    "pairwise_ar": {
+      "mean_gain": 0.0207890422687257,
+      "cluster_95_ci": [
+        0.016767471262270725,
+        0.024705498442396355
+      ],
+      "cluster_count": 3340
+    },
+    "popularity": {
+      "mean_gain": 0.9302138858837526,
+      "cluster_95_ci": [
+        0.9020798409321599,
+        0.9607314293421422
+      ],
+      "cluster_count": 3340
+    },
+    "size_aware_esp": {
+      "mean_gain": 0.05901276253594126,
+      "cluster_95_ci": [
+        0.05200559006903843,
+        0.0658850697107968
+      ],
+      "cluster_count": 3340
+    },
+    "structured_energy": {
+      "mean_gain": 0.004013943487696894,
+      "cluster_95_ci": [
+        0.0003897764590655746,
+        0.007442257598359556
+      ],
+      "cluster_count": 3340
+    }
+  }
+}

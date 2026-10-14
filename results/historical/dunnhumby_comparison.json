@@ -1,0 +1,390 @@
+{
+  "dataset": "dunnhumby",
+  "mode": "fresh",
+  "train_baskets": 87503,
+  "validation_baskets": 9674,
+  "test_baskets": 13499,
+  "generation_contexts": 2048,
+  "generation_draws_per_context": 48,
+  "proposed_fit_record": {
+    "initial_objective": 6.208141179023812,
+    "final_objective": 6.193175943187729,
+    "best_validation_ll": -6.42338577161603,
+    "final_validation_ll": -6.42338577161603,
+    "final_raw_projected_gradient": 0.00015438425010020455,
+    "final_scaled_projected_gradient": 0.00015438425010020455,
+    "active_parameter_count": 2610,
+    "total_parameter_count": 449124,
+    "stationarity_passed": true,
+    "iterations": 16,
+    "seconds": 1.5637575000000652
+  },
+  "summary_table": [
+    {
+      "model": "proposed_whole_law",
+      "family": "composite_whole_law_nonparametric_count_and_missions",
+      "train_baskets": 87503,
+      "generation_draws": 48,
+      "test_ll": -6.834019410008719,
+      "validation_ll": -6.42338577161603,
+      "size_TV": 0.02165730794270833,
+      "frequency_MAE": 0.005184809366861979,
+      "category_pair_MAE": 0.0029317220052083332,
+      "within_category_multiple_MAE": 0.0028076171875,
+      "recall5": 0.47314867071947153,
+      "Brier": 0.027289153836297653,
+      "raw_projected_gradient": 0.00015438425010020455,
+      "scaled_projected_gradient": 0.00015438425010020455,
+      "stationarity_passed": true,
+      "generation_seconds": 0.5981473749998258,
+      "fit_seconds": 1.5637575000000652,
+      "checkpoint_path": "results/checkpoints/dunnhumby/proposed_whole_law.pt",
+      "proposed_gain_over_model": 0.0,
+      "proposed_gain_95_ci_low": 0.0,
+      "proposed_gain_95_ci_high": 0.0
+    },
+    {
+      "model": "neural_nade",
+      "family": "conditional_NADE_H16_crossprice_rank8",
+      "train_baskets": 87503,
+      "generation_draws": 48,
+      "test_ll": -6.842609055640831,
+      "validation_ll": -6.453587328816313,
+      "size_TV": 0.0166015625,
+      "frequency_MAE": 0.005159854888916016,
+      "category_pair_MAE": 0.002604760064019097,
+      "within_category_multiple_MAE": 0.0022436777750651045,
+      "recall5": 0.45926036311778495,
+      "Brier": 0.027377554710875166,
+      "raw_projected_gradient": 0.00013350283445430554,
+      "scaled_projected_gradient": 0.00016518155916230774,
+      "stationarity_passed": true,
+      "generation_seconds": 0.7307209169994167,
+      "fit_seconds": 1.2505560839999816,
+      "checkpoint_path": "results/checkpoints/dunnhumby/neural_nade.pt",
+      "proposed_gain_over_model": 0.0085896456321128,
+      "proposed_gain_95_ci_low": -0.002587169639414366,
+      "proposed_gain_95_ci_high": 0.019407575047790056
+    },
+    {
+      "model": "structured_energy",
+      "family": "category_frontier_dp_energy",
+      "train_baskets": 87503,
+      "generation_draws": 48,
+      "test_ll": -6.947024500988224,
+      "validation_ll": -6.548235261414983,
+      "size_TV": 0.08139038085937501,
+      "frequency_MAE": 0.005446592966715494,
+      "category_pair_MAE": 0.0042539808485243065,
+      "within_category_multiple_MAE": 0.0025164286295572915,
+      "recall5": 0.46344756859893577,
+      "Brier": 0.0273987925644462,
+      "raw_projected_gradient": 1.8174692217876043e-05,
+      "scaled_projected_gradient": 3.453003508672432e-05,
+      "stationarity_passed": true,
+      "generation_seconds": 1.33431995799765,
+      "fit_seconds": 8.302664250000817,
+      "checkpoint_path": "results/checkpoints/dunnhumby/structured_energy.pt",
+      "proposed_gain_over_model": 0.11300509097950594,
+      "proposed_gain_95_ci_low": 0.10410606712876934,
+      "proposed_gain_95_ci_high": 0.12238303810487461
+    },
+    {
+      "model": "pairwise_ar",
+      "family": "pairwise_binary_ar",
+      "train_baskets": 87503,
+      "generation_draws": 48,
+      "test_ll": -7.042814486688167,
+      "validation_ll": -6.669380215174414,
+      "size_TV": 0.050760904947916664,
+      "frequency_MAE": 0.0056955019632975255,
+      "category_pair_MAE": 0.0033094618055555555,
+      "within_category_multiple_MAE": 0.002669652303059896,
+      "recall5": 0.4307334822837753,
+      "Brier": 0.027890577383920655,
+      "raw_projected_gradient": 6.224926505810308e-05,
+      "scaled_projected_gradient": 9.337389758715462e-05,
+      "stationarity_passed": true,
+      "generation_seconds": 0.3894067500004894,
+      "fit_seconds": 2.0670976670007803,
+      "checkpoint_path": "results/checkpoints/dunnhumby/pairwise_ar.pt",
+      "proposed_gain_over_model": 0.20879507667944824,
+      "proposed_gain_95_ci_low": 0.18997524590644738,
+      "proposed_gain_95_ci_high": 0.22599934476180253
+    },
+    {
+      "model": "mission_esp",
+      "family": "mission_esp_K2",
+      "train_baskets": 87503,
+      "generation_draws": 48,
+      "test_ll": -7.060798202923686,
+      "validation_ll": -6.642487816487688,
+      "size_TV": 0.02845255533854167,
+      "frequency_MAE": 0.005992412567138673,
+      "category_pair_MAE": 0.003425852457682292,
+      "within_category_multiple_MAE": 0.0021165211995442705,
+      "recall5": 0.456671503680781,
+      "Brier": 0.027581417814214176,
+      "raw_projected_gradient": 0.00011871677412956437,
+      "scaled_projected_gradient": 0.00017807516119434656,
+      "stationarity_passed": true,
+      "generation_seconds": 0.4083728750010778,
+      "fit_seconds": 6.08793816600155,
+      "checkpoint_path": "results/checkpoints/dunnhumby/mission_esp.pt",
+      "proposed_gain_over_model": 0.22677879291496894,
+      "proposed_gain_95_ci_low": 0.21360161552532494,
+      "proposed_gain_95_ci_high": 0.24034464294820343
+    },
+    {
+      "model": "low_rank_bilinear_ar",
+      "family": "low_rank_bilinear_ar_rank8",
+      "train_baskets": 87503,
+      "generation_draws": 48,
+      "test_ll": -7.135422293685007,
+      "validation_ll": -6.758055010747655,
+      "size_TV": 0.043162027994791685,
+      "frequency_MAE": 0.005639553070068359,
+      "category_pair_MAE": 0.004071807861328125,
+      "within_category_multiple_MAE": 0.0043773651123046875,
+      "recall5": 0.43340643460272366,
+      "Brier": 0.027891591931065766,
+      "raw_projected_gradient": 9.185925425671838e-05,
+      "scaled_projected_gradient": 0.00013778888138507757,
+      "stationarity_passed": true,
+      "generation_seconds": 0.41869020800004364,
+      "fit_seconds": 3.987582041998394,
+      "checkpoint_path": "results/checkpoints/dunnhumby/low_rank_bilinear_ar.pt",
+      "proposed_gain_over_model": 0.30140288367628915,
+      "proposed_gain_95_ci_low": 0.2831243323648351,
+      "proposed_gain_95_ci_high": 0.3189327237291744
+    },
+    {
+      "model": "independent_categories_esp",
+      "family": "independent_categories_esp",
+      "train_baskets": 87503,
+      "generation_draws": 48,
+      "test_ll": -7.170033755084534,
+      "validation_ll": -6.754247356546763,
+      "size_TV": 0.10898844401041669,
+      "frequency_MAE": 0.005958875020345053,
+      "category_pair_MAE": 0.004868570963541667,
+      "within_category_multiple_MAE": 0.0021228790283203125,
+      "recall5": 0.43970003114290224,
+      "Brier": 0.027734614433126248,
+      "raw_projected_gradient": 0.00012003443088339199,
+      "scaled_projected_gradient": 0.000180051646325088,
+      "stationarity_passed": true,
+      "generation_seconds": 0.2526164580012846,
+      "fit_seconds": 1.848342875000526,
+      "checkpoint_path": "results/checkpoints/dunnhumby/independent_categories_esp.pt",
+      "proposed_gain_over_model": 0.3360143450758159,
+      "proposed_gain_95_ci_low": 0.31782711822261683,
+      "proposed_gain_95_ci_high": 0.3544906592165776
+    },
+    {
+      "model": "size_aware_esp",
+      "family": "size_aware_esp",
+      "train_baskets": 87503,
+      "generation_draws": 48,
+      "test_ll": -7.186165877401996,
+      "validation_ll": -6.8090694159854666,
+      "size_TV": 0.022084554036458325,
+      "frequency_MAE": 0.005936622619628906,
+      "category_pair_MAE": 0.004818471272786459,
+      "within_category_multiple_MAE": 0.005954742431640625,
+      "recall5": 0.44409243100649354,
+      "Brier": 0.027887229378341784,
+      "raw_projected_gradient": 0.005602383451567325,
+      "scaled_projected_gradient": 0.022324376585422606,
+      "stationarity_passed": false,
+      "generation_seconds": 0.9007984999989276,
+      "fit_seconds": 1.1224214590001793,
+      "checkpoint_path": "results/checkpoints/dunnhumby/size_aware_esp.pt",
+      "proposed_gain_over_model": 0.3521464673932772,
+      "proposed_gain_95_ci_low": 0.3330326723106594,
+      "proposed_gain_95_ci_high": 0.3701509482836518
+    },
+    {
+      "model": "no_price",
+      "family": "no_price",
+      "train_baskets": 87503,
+      "generation_draws": 48,
+      "test_ll": -7.267640959632423,
+      "validation_ll": -6.8850080432056195,
+      "size_TV": 0.13545735677083334,
+      "frequency_MAE": 0.005651632944742839,
+      "category_pair_MAE": 0.004727342393663195,
+      "within_category_multiple_MAE": 0.006383260091145834,
+      "recall5": 0.43942684377254687,
+      "Brier": 0.027860864679864112,
+      "raw_projected_gradient": 8.24986523446125e-05,
+      "scaled_projected_gradient": 0.00012374797851691876,
+      "stationarity_passed": true,
+      "generation_seconds": 0.20012225000027684,
+      "fit_seconds": 0.1604164580021461,
+      "checkpoint_path": "results/checkpoints/dunnhumby/no_price.pt",
+      "proposed_gain_over_model": 0.43362154962370547,
+      "proposed_gain_95_ci_low": 0.4132900207817595,
+      "proposed_gain_95_ci_high": 0.45489228828286726
+    },
+    {
+      "model": "independent_parent",
+      "family": "mvp_independent_logit",
+      "train_baskets": 87503,
+      "generation_draws": 48,
+      "test_ll": -7.268341739363649,
+      "validation_ll": -6.88654672712806,
+      "size_TV": 0.134033203125,
+      "frequency_MAE": 0.005638440450032551,
+      "category_pair_MAE": 0.004783036973741319,
+      "within_category_multiple_MAE": 0.0062694549560546875,
+      "recall5": 0.43713889734397543,
+      "Brier": 0.027865409851074215,
+      "raw_projected_gradient": 0.00010815412768201079,
+      "scaled_projected_gradient": 0.00017983855933747107,
+      "stationarity_passed": true,
+      "generation_seconds": 0.16359129199918243,
+      "fit_seconds": 0.3093349999981001,
+      "checkpoint_path": "results/checkpoints/dunnhumby/independent_parent.pt",
+      "proposed_gain_over_model": 0.4343223293549312,
+      "proposed_gain_95_ci_low": 0.41405654701453587,
+      "proposed_gain_95_ci_high": 0.4550991813312492
+    },
+    {
+      "model": "gaussian_factor_mixture",
+      "family": "gaussian_factor_mixture_K6_M12",
+      "train_baskets": 87503,
+      "generation_draws": 48,
+      "test_ll": -7.29228993926532,
+      "validation_ll": -6.908945928182853,
+      "size_TV": 0.09114583333333334,
+      "frequency_MAE": 0.006569703420003256,
+      "category_pair_MAE": 0.006520589192708333,
+      "within_category_multiple_MAE": 0.005654017130533854,
+      "recall5": 0.42887258818655305,
+      "Brier": 0.027972579847836323,
+      "raw_projected_gradient": 5.6799647809311933e-05,
+      "scaled_projected_gradient": 8.51994717139679e-05,
+      "stationarity_passed": true,
+      "generation_seconds": 0.20555945900196093,
+      "fit_seconds": 3.8044581249996554,
+      "checkpoint_path": "results/checkpoints/dunnhumby/gaussian_factor_mixture.pt",
+      "proposed_gain_over_model": 0.45827052925660194,
+      "proposed_gain_95_ci_low": 0.4349043849382924,
+      "proposed_gain_95_ci_high": 0.48269463662108925
+    },
+    {
+      "model": "popularity",
+      "family": "popularity",
+      "train_baskets": 87503,
+      "generation_draws": 48,
+      "test_ll": -8.156572137972505,
+      "validation_ll": -7.902060257730892,
+      "size_TV": 0.144744873046875,
+      "frequency_MAE": 0.007185141245524089,
+      "category_pair_MAE": 0.00509185791015625,
+      "within_category_multiple_MAE": 0.0059007008870442705,
+      "recall5": 0.3017448304191468,
+      "Brier": 0.030020091550570005,
+      "raw_projected_gradient": 0.00010485924871398052,
+      "scaled_projected_gradient": 0.00015728887307097077,
+      "stationarity_passed": true,
+      "generation_seconds": 0.15985633300078916,
+      "fit_seconds": 0.04336729100032244,
+      "checkpoint_path": "results/checkpoints/dunnhumby/popularity.pt",
+      "proposed_gain_over_model": 1.3225527279637883,
+      "proposed_gain_95_ci_low": 1.2651985467109643,
+      "proposed_gain_95_ci_high": 1.380806302954159
+    }
+  ],
+  "paired_household_bootstrap_vs_proposed": {
+    "gaussian_factor_mixture": {
+      "mean_gain": 0.45827052925660194,
+      "cluster_95_ci": [
+        0.4349043849382924,
+        0.48269463662108925
+      ],
+      "cluster_count": 2033
+    },
+    "independent_categories_esp": {
+      "mean_gain": 0.3360143450758159,
+      "cluster_95_ci": [
+        0.31782711822261683,
+        0.3544906592165776
+      ],
+      "cluster_count": 2033
+    },
+    "independent_parent": {
+      "mean_gain": 0.4343223293549312,
+      "cluster_95_ci": [
+        0.41405654701453587,
+        0.4550991813312492
+      ],
+      "cluster_count": 2033
+    },
+    "low_rank_bilinear_ar": {
+      "mean_gain": 0.30140288367628915,
+      "cluster_95_ci": [
+        0.2831243323648351,
+        0.3189327237291744
+      ],
+      "cluster_count": 2033
+    },
+    "mission_esp": {
+      "mean_gain": 0.22677879291496894,
+      "cluster_95_ci": [
+        0.21360161552532494,
+        0.24034464294820343
+      ],
+      "cluster_count": 2033
+    },
+    "neural_nade": {
+      "mean_gain": 0.0085896456321128,
+      "cluster_95_ci": [
+        -0.002587169639414366,
+        0.019407575047790056
+      ],
+      "cluster_count": 2033
+    },
+    "no_price": {
+      "mean_gain": 0.43362154962370547,
+      "cluster_95_ci": [
+        0.4132900207817595,
+        0.45489228828286726
+      ],
+      "cluster_count": 2033
+    },
+    "pairwise_ar": {
+      "mean_gain": 0.20879507667944824,
+      "cluster_95_ci": [
+        0.18997524590644738,
+        0.22599934476180253
+      ],
+      "cluster_count": 2033
+    },
+    "popularity": {
+      "mean_gain": 1.3225527279637883,
+      "cluster_95_ci": [
+        1.2651985467109643,
+        1.380806302954159
+      ],
+      "cluster_count": 2033
+    },
+    "size_aware_esp": {
+      "mean_gain": 0.3521464673932772,
+      "cluster_95_ci": [
+        0.3330326723106594,
+        0.3701509482836518
+      ],
+      "cluster_count": 2033
+    },
+    "structured_energy": {
+      "mean_gain": 0.11300509097950594,
+      "cluster_95_ci": [
+        0.10410606712876934,
+        0.12238303810487461
+      ],
+      "cluster_count": 2033
+    }
+  }
+}
