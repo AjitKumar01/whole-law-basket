@@ -19,7 +19,7 @@ python -m pytest -q tests
 
 ## Train and evaluate
 
-Synthetic data are generated deterministically when prepared splits are absent. No dataset download or pretrained checkpoint is required for synthetic training.
+Prepared synthetic splits are included. If absent, they are generated deterministically; synthetic training requires no pretrained checkpoint.
 
 ```bash
 # One synthetic world, proposed model and its unregularized ablation.
@@ -28,7 +28,7 @@ python benchmarks/run_all_benchmarks.py --stage synthetic --world missions_b --m
 # All synthetic worlds and baselines.
 python benchmarks/run_all_benchmarks.py --stage synthetic --mode fresh
 
-# Real-data comparisons, after supplying the prepared inputs described below.
+# Real-data comparisons, using the prepared inputs bundled with the repository.
 python benchmarks/run_all_benchmarks.py --stage erim --mode fresh
 python benchmarks/run_all_benchmarks.py --stage dunnhumby --mode fresh
 
@@ -45,7 +45,15 @@ Use `--results-dir PATH` to isolate experiments and `--threads N` to change CPU 
 
 ## Real-data inputs
 
-Retail observations and local checkpoints are excluded from Git. Supply the existing prepared data under `data/`:
+Prepared data and the frozen preference-control weights are included in Git. A normal clone contains everything required by the current real-data loader. The bundled inputs occupy about **101.1 MiB**: ERIM **5.7 MiB**, Dunnhumby **87.1 MiB**, and the three synthetic worlds **8.3 MiB**. File sizes, SHA-256 checksums, and dataset dimensions are recorded in [`data/manifest.json`](data/manifest.json).
+
+To verify file integrity and load all split counts:
+
+```bash
+python scripts/verify_prepared_data.py --load
+```
+
+The prepared layout is:
 
 ```text
 data/
@@ -78,7 +86,7 @@ data/
 
 The real loader implements the current 28-product ERIM selection and 64-product Dunnhumby projection. `erim/*.npz` contains `house`, `store`, `week`, `member`, `dlp`, `disp`, and `mail`. The packed Dunnhumby splits contain `house`, `store`, `week`, `context`, and `packed_member`; context indices address the shared offer arrays. Configurations define the catalogue, mappings, and calendar support. Parent weights must match `ParentControls` and their accompanying configuration. Graph `screen.json` files provide the selected `edges`.
 
-Real experiments fit correction models conditional on the supplied frozen preference controls and screened graph. Raw transaction preprocessing and retraining those historical controls are outside this runner. Reference `*_init.pt` files are unnecessary and are never loaded.
+Real experiments fit correction models conditional on the supplied frozen preference controls and screened graph. The bundled weights are the shared preference controls, not trained comparison models. Raw transaction preprocessing and retraining those historical controls are outside this runner. Reference `*_init.pt` files are unnecessary and are never loaded.
 
 ## Models
 

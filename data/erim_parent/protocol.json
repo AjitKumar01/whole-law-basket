@@ -1,0 +1,16 @@
+{
+  "optimizer": "L-BFGS-B",
+  "maxiter": 250,
+  "ridge": 1.0,
+  "maxcalls": 300,
+  "time_limit": 180,
+  "batch_size": 1024,
+  "seed": 920001,
+  "stationarity_threshold": 0.0002,
+  "selection": "maximum validation basket log likelihood, including initialization",
+  "model": "separated-price category chain; fully offered, nonempty distinct-item baskets",
+  "train_baskets": 47858,
+  "validation_baskets": 15696,
+  "torch": "2.9.1",
+  "numpy": "2.3.5"
+}

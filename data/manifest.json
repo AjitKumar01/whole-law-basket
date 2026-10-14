@@ -1,0 +1,231 @@
+{
+  "format_version": 1,
+  "description": "Prepared splits and frozen preference controls used by the current benchmark loader; no raw transaction preprocessing or fitted comparison models.",
+  "datasets": {
+    "erim": {
+      "products": 28,
+      "categories": 7,
+      "train_baskets": 47858,
+      "validation_baskets": 15696,
+      "test_baskets": 15403
+    },
+    "dunnhumby": {
+      "products": 64,
+      "categories": 16,
+      "source_catalogue_products": 1024,
+      "train_baskets": 87503,
+      "validation_baskets": 9674,
+      "test_baskets": 13499
+    },
+    "synthetic": {
+      "worlds": [
+        "missions_a",
+        "missions_b",
+        "zero_price"
+      ],
+      "products_per_world": 12,
+      "categories_per_world": 3,
+      "train_baskets_per_world": 20000,
+      "validation_baskets_per_world": 5000,
+      "test_baskets_per_world": 5000
+    }
+  },
+  "total_bytes": 106017103,
+  "files": [
+    {
+      "path": "dunnhumby/config.json",
+      "bytes": 16700,
+      "sha256": "79bac808d7c254dc205ba6994390069c6fb592fc295621a3015a7b8fe6300bca"
+    },
+    {
+      "path": "dunnhumby/contexts.csv",
+      "bytes": 74391,
+      "sha256": "c3a84241c75fae5405ca2b41a085a2c6a3ab8ad22a2aed0fe41a980b723e4a91"
+    },
+    {
+      "path": "dunnhumby/disp.npy",
+      "bytes": 10580096,
+      "sha256": "cfcd448b7ba57ef17b312380d227a194d993f2f06b9fc0630f4b8ecc602294c2"
+    },
+    {
+      "path": "dunnhumby/dlp.npy",
+      "bytes": 42320000,
+      "sha256": "2798eab06035f366e5080da5c2fcac34a4ed1ec5b3337f4e44b285528bcc4aeb"
+    },
+    {
+      "path": "dunnhumby/id_maps.json",
+      "bytes": 51090,
+      "sha256": "60b31e9cb1d40541fc21766436bd83ac698ed2cff4365375895dd01d901ed0c1"
+    },
+    {
+      "path": "dunnhumby/mail.npy",
+      "bytes": 10580096,
+      "sha256": "a9e1b963e7e6fd1053c5762a523888e29b491f95ff578d40ebc764f5889cc77f"
+    },
+    {
+      "path": "dunnhumby/products.csv",
+      "bytes": 79029,
+      "sha256": "e15976588d0e44ae61b8c7081d6a8ae7f4a3dc9d5a5c0824146de4d82dcf2e6d"
+    },
+    {
+      "path": "dunnhumby/reference_price.npy",
+      "bytes": 8320,
+      "sha256": "ba3373648db85708e4d164d2a25dd8a879998710f1c8018563262d7bb3dd3c3a"
+    },
+    {
+      "path": "dunnhumby/test.npz",
+      "bytes": 331536,
+      "sha256": "c9e369f4642b4b4cbaccfde1c8d0940063c2366511b5b5412112647923f44c30"
+    },
+    {
+      "path": "dunnhumby/train.npz",
+      "bytes": 2124429,
+      "sha256": "b36d2914d27e0549597646be11f750f55d54b879f3f692bb5c0eca9a28fec670"
+    },
+    {
+      "path": "dunnhumby/validation.npz",
+      "bytes": 241283,
+      "sha256": "e65914d99c4f413eb0b8508db28e0c0725a0b3882dfa962130185780f8e0f102"
+    },
+    {
+      "path": "dunnhumby_parent/best.pt",
+      "bytes": 24899191,
+      "sha256": "cbaa139c5f52b73123045d7983f88bebc823375daa6599727557f34f44c20f80"
+    },
+    {
+      "path": "dunnhumby_parent/config.json",
+      "bytes": 16777,
+      "sha256": "98a63ccdf1ad3ee4c1fd69638f11a2ee51b417fb29a07f5bdb86e614c059ec45"
+    },
+    {
+      "path": "dunnhumby_parent/fit.json",
+      "bytes": 786,
+      "sha256": "eae9beec57dd000eca70ee1ebc5fd11c72b2a064e487ef9bab4f3f8d819e6be3"
+    },
+    {
+      "path": "dunnhumby_parent/protocol.json",
+      "bytes": 600,
+      "sha256": "62513306d5b150ba5ed9cb9fea8ac4c4e0faacff0fbc7b0ffc35f47ff1bb2f6f"
+    },
+    {
+      "path": "dunnhumby_parent/selection_record.json",
+      "bytes": 993,
+      "sha256": "babd3f186eb4242026acdd35cef07b4aed10772331748477a843b71abd66439c"
+    },
+    {
+      "path": "dunnhumby_ref/screen.json",
+      "bytes": 2982,
+      "sha256": "298aaca1a1a01f09c08157685ccaa354da30cbf30995520bffad087a70966ffc"
+    },
+    {
+      "path": "erim/config.json",
+      "bytes": 1164,
+      "sha256": "8a71ce7bc177fdd965767c1a46ded97b45d70bf11cbe5c7d90981175269444d5"
+    },
+    {
+      "path": "erim/data_audit.json",
+      "bytes": 1496,
+      "sha256": "d597ab5aff9e0fab9b459158dfe60483a38a2626cb68774b5bb80c092a084852"
+    },
+    {
+      "path": "erim/test.npz",
+      "bytes": 681130,
+      "sha256": "703da44037025096485cbb35409af4e2ac62fb51aea26b13e0a06676b51b4906"
+    },
+    {
+      "path": "erim/train.npz",
+      "bytes": 3575544,
+      "sha256": "7650b4b4237fdee58da593169cd423bd34cbefc5755acac812f9091bb9e041a3"
+    },
+    {
+      "path": "erim/validation.npz",
+      "bytes": 712504,
+      "sha256": "4d99c434c6b2f83d24d08fc4245be027eb40693ea6ec8f02acefbc8bc520b896"
+    },
+    {
+      "path": "erim_parent/best.pt",
+      "bytes": 1007325,
+      "sha256": "7a7db703007f8490ae0e38676f6a02130577ac09db0689993f1bdad103962dc5"
+    },
+    {
+      "path": "erim_parent/config.json",
+      "bytes": 1305,
+      "sha256": "1fd54cb0e53cd647c36f1a947f9e841e2fd53ec1efb5d80556b3bda4836bd0e1"
+    },
+    {
+      "path": "erim_parent/fit.json",
+      "bytes": 586,
+      "sha256": "7835aef1c0714a9b837961c0df9c90a021cbaa7a3f7e107946ff10c2a3d54d68"
+    },
+    {
+      "path": "erim_parent/protocol.json",
+      "bytes": 454,
+      "sha256": "4637526da0c0ab986b8131092ffba8c24d1271675b5c6358b16807a044dc90c7"
+    },
+    {
+      "path": "erim_ref/screen.json",
+      "bytes": 1602,
+      "sha256": "e0a66ee9da03ad9010ab7e86b1f76912de58fded72e8c8d936812d299217b46d"
+    },
+    {
+      "path": "synthetic/missions_a/data/config.json",
+      "bytes": 105,
+      "sha256": "8a1dd2237bc38abf626c11ae42f1553b027b56426f0ebaab7cc0619fc2a6080e"
+    },
+    {
+      "path": "synthetic/missions_a/data/test.npz",
+      "bytes": 484718,
+      "sha256": "879cf3b9a6cd3bdea316093651423deff2ef2f5fd2de276e15be9e07d484eb13"
+    },
+    {
+      "path": "synthetic/missions_a/data/train.npz",
+      "bytes": 1932602,
+      "sha256": "47e428c43b7ed09eb3061e3cedf609bbeb28d8eec59b9fd17fb19fa51afe5282"
+    },
+    {
+      "path": "synthetic/missions_a/data/validation.npz",
+      "bytes": 484887,
+      "sha256": "760bb2c2cfbb041ed8e7cacb2969fb622b886a7a99e4c8dff832c9cfef1eb139"
+    },
+    {
+      "path": "synthetic/missions_b/data/config.json",
+      "bytes": 105,
+      "sha256": "8a1dd2237bc38abf626c11ae42f1553b027b56426f0ebaab7cc0619fc2a6080e"
+    },
+    {
+      "path": "synthetic/missions_b/data/test.npz",
+      "bytes": 484948,
+      "sha256": "b8eed9a5b80e99bcd957b4e85da48d20a29268d930bd52edeccf67f79c38c872"
+    },
+    {
+      "path": "synthetic/missions_b/data/train.npz",
+      "bytes": 1932583,
+      "sha256": "9f6fc5f75c4d3e4f6984bd6f00cd26ab5dc3ab7e96216ab7bd1e017bd5bc0f26"
+    },
+    {
+      "path": "synthetic/missions_b/data/validation.npz",
+      "bytes": 484688,
+      "sha256": "dc4569d63946dc99ab5b52bf36b844d4f9225705024b1c15a1f4bd622d858559"
+    },
+    {
+      "path": "synthetic/zero_price/data/config.json",
+      "bytes": 105,
+      "sha256": "8a1dd2237bc38abf626c11ae42f1553b027b56426f0ebaab7cc0619fc2a6080e"
+    },
+    {
+      "path": "synthetic/zero_price/data/test.npz",
+      "bytes": 484435,
+      "sha256": "a6c3e5263f2a9e550c7dc99d1566c2c7f45583ba55456c45b5b4c82da03d178d"
+    },
+    {
+      "path": "synthetic/zero_price/data/train.npz",
+      "bytes": 1931812,
+      "sha256": "8ecbae8bc732373785247f98d4d6f55f2049fe88b1c6d069163a3379ab0f2236"
+    },
+    {
+      "path": "synthetic/zero_price/data/validation.npz",
+      "bytes": 484706,
+      "sha256": "c57cc75fb7ad5a6e28099ade29cc2ad623fcbf1305094be12b4a1622411ee08e"
+    }
+  ]
+}

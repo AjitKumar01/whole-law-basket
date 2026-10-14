@@ -1,0 +1,4 @@
+*.npy binary
+*.npz binary
+*.pt binary
+data/** -text

@@ -1,0 +1,18 @@
+{
+  "optimizer": "L-BFGS-B",
+  "maxiter": 350,
+  "ridge": 10.0,
+  "maxcalls": 500,
+  "time_limit": 1800,
+  "batch_size": 512,
+  "seed": 972301,
+  "stationarity_threshold": 0.0002,
+  "lbfgs_history": 3,
+  "coordinate_preconditioning": "fixed approximate diagonal Fisher; identical raw objective/bounds/gradient certificate",
+  "selection": "maximum validation basket log likelihood, including initialization",
+  "model": "separated-price category chain; fully offered, nonempty distinct-item baskets",
+  "train_baskets": 132934,
+  "validation_baskets": 14841,
+  "torch": "2.9.1",
+  "numpy": "2.3.5"
+}

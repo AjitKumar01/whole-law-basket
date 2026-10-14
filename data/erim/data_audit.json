@@ -1,0 +1,49 @@
+{
+  "reference_price_contract": "training median, same-period retail aggregate else last earlier row; retrospective conditional inference",
+  "splits": {
+    "train": {
+      "baskets": 47858,
+      "weeks": [
+        1,
+        30
+      ],
+      "current_price_fraction": 0.8512907231512271,
+      "reference_fallback_fraction": 0.09613932287779921,
+      "household_unknown_fraction": 0.0,
+      "original_baskets": 86036,
+      "retained_transaction_lines": 61977,
+      "all_transaction_lines": 145236,
+      "targets_scored": false
+    },
+    "validation": {
+      "baskets": 15696,
+      "weeks": [
+        31,
+        40
+      ],
+      "current_price_fraction": 0.8671727100626183,
+      "reference_fallback_fraction": 0.07475289427697684,
+      "household_unknown_fraction": 0.001337920489296636,
+      "original_baskets": 26279,
+      "retained_transaction_lines": 20299,
+      "all_transaction_lines": 43044,
+      "targets_scored": false
+    },
+    "test": {
+      "baskets": 15403,
+      "weeks": [
+        41,
+        51
+      ],
+      "current_price_fraction": 0.8610173342855288,
+      "reference_fallback_fraction": 0.07163956928613165,
+      "household_unknown_fraction": 0.0007790690125300266,
+      "original_baskets": 26706,
+      "retained_transaction_lines": 19677,
+      "all_transaction_lines": 43414,
+      "targets_scored": false
+    }
+  },
+  "test_price_covariate_outside_training_range_fraction": 0.022238246723736563,
+  "train_validation_reproduction_passed": true
+}

@@ -8,7 +8,8 @@ dist/
 .DS_Store
 .env
 .env.*
-/data/
+/data/*_ref/*_init.pt
+/data/synthetic/*/*.pt
 /results/*
 !/results/historical/
 /results/historical/*

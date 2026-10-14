@@ -1,0 +1,17 @@
+{
+  "initial_objective": 4.318764817609732,
+  "final_objective": 3.0490870215444845,
+  "best_objective": 3.049660399365053,
+  "best_validation_ll": -3.439263270713663,
+  "final_validation_ll": -3.441705847480824,
+  "best_iteration": 175,
+  "iterations": 250,
+  "calls": 257,
+  "optimizer_message": "STOP: TOTAL NO. OF ITERATIONS REACHED LIMIT",
+  "best_projected_gradient": 0.00012948787293078702,
+  "final_projected_gradient": 8.578207174351652e-05,
+  "best_stationarity_passed": true,
+  "final_stationarity_passed": true,
+  "parameter_count": 108976,
+  "seconds": 58.57024304103106
+}
